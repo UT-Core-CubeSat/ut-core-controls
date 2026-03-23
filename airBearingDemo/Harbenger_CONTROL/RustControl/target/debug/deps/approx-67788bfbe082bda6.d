@@ -1,0 +1,11 @@
+C:\Users\broth\Dropbox\CubeSat\CONTROL\RustControl\target\debug\deps\libapprox-67788bfbe082bda6.rmeta: C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\lib.rs C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\abs_diff_eq.rs C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\relative_eq.rs C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\ulps_eq.rs C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\macros.rs
+
+C:\Users\broth\Dropbox\CubeSat\CONTROL\RustControl\target\debug\deps\libapprox-67788bfbe082bda6.rlib: C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\lib.rs C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\abs_diff_eq.rs C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\relative_eq.rs C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\ulps_eq.rs C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\macros.rs
+
+C:\Users\broth\Dropbox\CubeSat\CONTROL\RustControl\target\debug\deps\approx-67788bfbe082bda6.d: C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\lib.rs C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\abs_diff_eq.rs C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\relative_eq.rs C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\ulps_eq.rs C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\macros.rs
+
+C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\lib.rs:
+C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\abs_diff_eq.rs:
+C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\relative_eq.rs:
+C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\ulps_eq.rs:
+C:\Users\broth\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\approx-0.5.1\src\macros.rs:

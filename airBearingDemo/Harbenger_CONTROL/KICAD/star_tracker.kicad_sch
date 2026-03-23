@@ -1,0 +1,681 @@
+(kicad_sch
+	(version 20231120)
+	(generator "eeschema")
+	(generator_version "8.0")
+	(uuid "3e8f40a4-6901-4d41-a056-73e14d00be92")
+	(paper "A4")
+	(lib_symbols
+		(symbol "CUBESAT:ARDUCAM"
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "U"
+				(at 0 11.684 0)
+				(do_not_autoplace)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "ARDUCAM SHIELD MINI 5MP PLUS"
+				(at 0 9.906 0)
+				(do_not_autoplace)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "https://docs.arducam.com/Arduino-SPI-camera/Legacy-SPI-camera/Hardware/Arducam-Shield-Mini-5MP-Plus/"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "5 MP SPI Camera"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "ARDUCAM_0_0"
+				(pin input line
+					(at -8.89 6.35 0)
+					(length 2.54)
+					(name "CS"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -8.89 1.27 0)
+					(length 2.54)
+					(name "MOSI"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at -8.89 -1.27 0)
+					(length 2.54)
+					(name "MISO"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -8.89 3.81 0)
+					(length 2.54)
+					(name "SCLK"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "4"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at 7.62 -6.35 180)
+					(length 2.54)
+					(name "GND"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "5"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at -8.89 -6.35 0)
+					(length 2.54)
+					(name "VCC"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "6"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin bidirectional line
+					(at 7.62 3.81 180)
+					(length 2.54)
+					(name "SDA"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "7"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(symbol "ARDUCAM_1_0"
+				(pin input line
+					(at 7.62 6.35 180)
+					(length 2.54)
+					(name "SCL"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "8"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin no_connect line
+					(at 0 -11.43 90)
+					(length 2.54) hide
+					(name "BOLT"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "9"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(symbol "ARDUCAM_1_1"
+				(rectangle
+					(start -6.35 8.89)
+					(end 5.08 -8.89)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+		)
+	)
+	(bus_alias "SPI"
+		(members "CLK" "MOSI" "MISO")
+	)
+	(bus_entry
+		(at 132.08 95.25)
+		(size 2.54 2.54)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "02b52ae0-2fd2-482e-a29b-84f20bdbf614")
+	)
+	(bus_entry
+		(at 132.08 97.79)
+		(size 2.54 2.54)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3481983a-ba99-473b-8889-cf6301feca97")
+	)
+	(bus_entry
+		(at 171.45 95.25)
+		(size 2.54 -2.54)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "88cceeff-fff5-4087-b110-6ecf603433b3")
+	)
+	(bus_entry
+		(at 171.45 97.79)
+		(size 2.54 -2.54)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9c53028a-5cb3-4f73-9035-d86ece7a14bd")
+	)
+	(bus_entry
+		(at 132.08 100.33)
+		(size 2.54 2.54)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "cf64416f-b4b3-4a3a-8f5b-d7d0d9f4ee38")
+	)
+	(wire
+		(pts
+			(xy 161.29 95.25) (xy 171.45 95.25)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0f51391b-46d7-4b5c-92c0-fdebbabf0cca")
+	)
+	(wire
+		(pts
+			(xy 163.83 107.95) (xy 161.29 107.95)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "151e984d-74fa-4d08-8b41-7f5d804bf116")
+	)
+	(wire
+		(pts
+			(xy 134.62 97.79) (xy 144.78 97.79)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "34b9348f-64dd-475a-9b6c-a3f16cfad9b6")
+	)
+	(bus
+		(pts
+			(xy 176.53 90.17) (xy 173.99 90.17)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "63594334-dbc1-4aa1-92ec-739bdf353c82")
+	)
+	(bus
+		(pts
+			(xy 132.08 95.25) (xy 132.08 92.71)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "641a732b-e90e-4c6b-88f1-c91b846e86cd")
+	)
+	(bus
+		(pts
+			(xy 132.08 97.79) (xy 132.08 100.33)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "6f804308-6653-4187-86da-7b28c42c0361")
+	)
+	(bus
+		(pts
+			(xy 132.08 95.25) (xy 132.08 97.79)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "77343838-5277-4c00-9f0b-3308da3eee19")
+	)
+	(wire
+		(pts
+			(xy 143.51 93.98) (xy 143.51 95.25)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7afca516-09de-44f6-9135-b7ee6afb4599")
+	)
+	(wire
+		(pts
+			(xy 134.62 100.33) (xy 144.78 100.33)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8ce718e8-481d-4343-965f-2bb8004bc5b5")
+	)
+	(wire
+		(pts
+			(xy 143.51 95.25) (xy 144.78 95.25)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "914ad379-a0a3-49e1-b25f-95a714f72950")
+	)
+	(wire
+		(pts
+			(xy 142.24 107.95) (xy 144.78 107.95)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a59b95a5-6671-4a80-927a-f04a9ff3964f")
+	)
+	(wire
+		(pts
+			(xy 161.29 97.79) (xy 171.45 97.79)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a945580a-e072-4cc4-9999-0510853e68b4")
+	)
+	(wire
+		(pts
+			(xy 142.24 93.98) (xy 143.51 93.98)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ac74fcb2-223c-43a9-8024-5bf823b9ea7b")
+	)
+	(bus
+		(pts
+			(xy 173.99 92.71) (xy 173.99 95.25)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ce286287-294c-4fc1-98c8-1be08db9f176")
+	)
+	(wire
+		(pts
+			(xy 134.62 102.87) (xy 144.78 102.87)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d12b28ee-efd1-4008-94f7-5c41ef4c1b63")
+	)
+	(bus
+		(pts
+			(xy 173.99 90.17) (xy 173.99 92.71)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ef473d63-926b-4b2e-90e3-3a00266a9d12")
+	)
+	(bus
+		(pts
+			(xy 129.54 92.71) (xy 132.08 92.71)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f840fa44-b612-4229-9120-d1e4a8fa6e0b")
+	)
+	(label "MOSI"
+		(at 142.24 100.33 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "4b557592-1d22-40d7-9297-ef3fd1b2d914")
+	)
+	(label "MISO"
+		(at 142.24 102.87 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "4fa599c5-3e0e-4acb-ad1b-08b085f4c9ae")
+	)
+	(label "CLK"
+		(at 142.24 97.79 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "5a7f0cc0-61cd-4a48-914b-0d653e5e7091")
+	)
+	(label "SDA"
+		(at 163.83 97.79 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "7a17b453-da51-46c3-96b3-8d8204e28ced")
+	)
+	(label "SCL"
+		(at 163.83 95.25 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "83721bf4-f729-4dc2-941b-c67520016c4e")
+	)
+	(hierarchical_label "{SPI}"
+		(shape bidirectional)
+		(at 129.54 92.71 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "0ea65166-79d2-443c-8fa5-8cc43b280f41")
+	)
+	(hierarchical_label "V_GND"
+		(shape input)
+		(at 163.83 107.95 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "3386ef7d-c6bb-4301-8b70-d4fdbefdf8ae")
+	)
+	(hierarchical_label "CS"
+		(shape input)
+		(at 142.24 93.98 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "4e99e697-e730-4d88-b800-cafa7122428c")
+	)
+	(hierarchical_label "V_5.0"
+		(shape input)
+		(at 142.24 107.95 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "73735850-0f0e-454f-b3b0-d61ec43fae8f")
+	)
+	(hierarchical_label "{I2C}"
+		(shape bidirectional)
+		(at 176.53 90.17 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "cea17ce8-9783-487c-999e-0b610f643e3e")
+	)
+	(symbol
+		(lib_id "CUBESAT:ARDUCAM")
+		(at 153.67 101.6 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "5cc3bae4-78c5-443b-9434-bf0549d8fb13")
+		(property "Reference" "U18"
+			(at 153.67 89.916 0)
+			(do_not_autoplace yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "ARDUCAM SHIELD MINI 5MP PLUS"
+			(at 153.67 91.694 0)
+			(do_not_autoplace yes)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "CUBESAT:ARDUCAM"
+			(at 153.67 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://docs.arducam.com/Arduino-SPI-camera/Legacy-SPI-camera/Hardware/Arducam-Shield-Mini-5MP-Plus/"
+			(at 153.67 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "5 MP SPI Camera"
+			(at 153.67 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Sim.Device" ""
+			(at 153.67 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Sim.Pins" ""
+			(at 153.67 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "5"
+			(uuid "76af5cfd-5152-4c51-82b4-a1ea403827e8")
+		)
+		(pin "3"
+			(uuid "fd8bb156-ace3-4dd6-9724-f3d9047d6592")
+		)
+		(pin "7"
+			(uuid "2d32b55f-839a-48e3-83f7-4bc8ec2a44e2")
+		)
+		(pin "8"
+			(uuid "cd46201b-1571-46d8-ad13-cf7885e73b81")
+		)
+		(pin "1"
+			(uuid "c50eccc7-435f-41ff-b01d-fa350e320c5d")
+		)
+		(pin "4"
+			(uuid "a345269e-be6b-48a0-bcd3-0f208fa707a7")
+		)
+		(pin "6"
+			(uuid "6466a4b3-a269-479a-881b-ff7f8f190db5")
+		)
+		(pin "2"
+			(uuid "aa8a583a-76ad-4ec3-817c-6c330e71ace4")
+		)
+		(pin "9"
+			(uuid "e248beae-dd5b-46a9-a36a-b0b0139814da")
+		)
+		(instances
+			(project ""
+				(path "/5d09a5b0-5470-41ee-acbf-63da99fdcb81/b1cb6e23-20d2-46c3-bab4-6c51dc2b3cd6"
+					(reference "U18")
+					(unit 1)
+				)
+			)
+		)
+	)
+)
