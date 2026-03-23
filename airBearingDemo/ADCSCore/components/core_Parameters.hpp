@@ -84,7 +84,7 @@ namespace Param {
         constexpr Real k_desat = static_cast<Real>(25);
 
         // Reaction Wheels
-        constexpr Real I_wheel = static_cast<Real>(1.13e-4);
+        constexpr Real I_wheel = static_cast<Real>(1.13e-6);
         constexpr Real RPM_max = static_cast<Real>(13600.0);
         constexpr Real RPM_min = -RPM_max;
         constexpr Real omega_w_max = RPM_max * static_cast<Real>(2.0) * PI / static_cast<Real>(60.0);
