@@ -124,12 +124,12 @@ r_ECI = Q * r_PQW;
 v_ECI = Q * v_PQW;
 end
 
-% Initial States
-function x0 = getInitialStates(r, v)
+% Initial States (11 elements for air bearing: q, omega, omega_wheel)
+function x0 = getInitialStates(~, ~)
 q0 = [1;0;0;0];
 omega = pi/180*[0;0;0];
 omega_wheel = 2*pi/60*[0;0;0;0]; % array in RPM
-x0 = [r; v; q0; omega; omega_wheel];
+x0 = [q0; omega; omega_wheel];  % 11 elements total
 end
 
 % Sensors
@@ -211,16 +211,16 @@ a.r_wheel = wheel_radius;
 a.t_wheel = wheel_thickness;
 end
 
-% Controller (NDI + Bdot)
+% Controller (NDI + Bdot) - Tuned for Air Bearing Demo
 function c = getControllerParams()
 
-% NDI
-c.t_s_plant = 45;
+% NDI - faster settling for ground demo
+c.t_s_plant = 5;     % [s] plant tracks model
 c.zeta_plant = 0.9;
-c.t_s_model = 90;
-c.zeta_model = 0.8;
+c.t_s_model = 12;    % [s] model tracks reference
+c.zeta_model = 0.85;
 
-% Bdot
+% Bdot (not used for air bearing)
 c.K_Bdot = 100000;
 c.alpha_Bdot = 0.95;
 end
@@ -257,15 +257,15 @@ end
 
 function p = getPlotSettings()
 p.active_figure = 1;
-p.animate_orientation = false;
+p.animate_orientation = true;
 p.animate_orbit       = false;
-p.plot_translation    = true;
+p.plot_translation    = false;
 p.plot_orientation    = true;
 p.plot_input          = true;
 p.plot_RPM            = true;
 p.plot_reference      = true;
 p.plot_estimate       = true;
-p.plot_model          = true;
+p.plot_model          = false;
 p.plot_adapt          = false;
 p.plot_error          = false;
 p.plot_measurements   = true;

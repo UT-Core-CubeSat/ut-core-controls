@@ -1,9 +1,7 @@
 #ifndef CORE_SATURATE_HPP
 #define CORE_SATURATE_HPP
 
-
 #include "core_Math.hpp"
-#include <algorithm>
 
 /**
  * @brief Saturate a scalar value between min and max bounds

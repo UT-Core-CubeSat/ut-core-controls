@@ -1,4 +1,5 @@
 #include "core_ControllerNDI.hpp"
+#include <iostream>  // DEBUG
 
 // Constructor 
 ControllerNDI::ControllerNDI()
@@ -17,8 +18,11 @@ ControllerNDI::ControllerNDI()
     k_desat(Param::Actuators::k_desat),
     m_max(Param::Actuators::m_max),
     m_min(Param::Actuators::m_min),
+    h_cg(Param::Apparatus::h_cg),
+    m(Param::Spacecraft::mass),
     x_m(StateVector::Zero()),
-    is_saturated(false)
+    is_saturated(false),
+    accumulated_time(static_cast<Param::Real>(0.0))
 {
     // Calculate gains 
     calculate_gains(Param::Controller::t_s_model,
@@ -33,9 +37,9 @@ ControllerNDI::ControllerNDI()
 
 }
 
-ControllerNDI::NDIOutput ControllerNDI::update(const Param::Vector17& states,
+ControllerNDI::NDIOutput ControllerNDI::update(const Param::Vector11& states,
                                      const Param::Vector10& reference,
-                                     const Param::Vector29& measurements, Param::Real dt) 
+                                     const Param::Vector13& measurements, Param::Real dt) 
 {
     // Reference
     Quat q_r; 
@@ -54,13 +58,13 @@ ControllerNDI::NDIOutput ControllerNDI::update(const Param::Vector17& states,
 
     // States
     Quat q;
-    q(0) = states(7);
-    q(1) = states(8);
-    q(2) = states(9);
-    q(3) = states(6);
+    q(0) = states(1);
+    q(1) = states(2);
+    q(2) = states(3);
+    q(3) = states(0);
     q.normalize();
-    Vector3 omega = states.segment<3>(10);
-    Vector4 omega_w = states.segment<4>(13);
+    Vector3 omega = states.segment<3>(4);
+    Vector4 omega_w = states.segment<4>(7);
 
     // Outer Loop (Model -> Reference)
     StateVector x_model = update_reference_model(NDI_reference, dt);
@@ -100,14 +104,52 @@ ControllerNDI::NDIOutput ControllerNDI::update(const Param::Vector17& states,
     // Compute torque from Euler's equation
     Vector3 tau_NDI = I*omega_dot + omega.cross(I*omega);
 
+    // Gravity feedforward Compensation
+    Vector3 accel_meas = measurements.segment<3>(0);
+    Scalar accel_norm = accel_meas.norm();
+    if (accel_norm > static_cast<Scalar>(0.1)) {
+        // Gravity direction in body frame
+        Vector3 g_body = -accel_meas * (Param::g / accel_norm);
+        
+        // CG offset vector in body frame: r_cg = [0, 0, h_cg]
+        Vector3 r_cg = Vector3{static_cast<Scalar>(0.0), 
+                               static_cast<Scalar>(0.0), 
+                               h_cg};
+        
+        // Gravity torque to cancel: τ_g = r_cg × (m * g_body)
+        Vector3 tau_gravity_ff = r_cg.cross(m * g_body);
+        
+        // SUBTRACT to cancel gravity torque (plant adds +τ_gravity, so we need -τ_gravity)
+        tau_NDI = tau_NDI - tau_gravity_ff;
+    }
+
     // Get desat torque
     Vector3 h_w = S * (I_wheel * omega_w);
-    Vector3 B_meas = measurements.segment<3>(16);
+    Vector3 B_meas = measurements.segment<3>(6);
     DesatOutput desat_out = wheel_desaturate(B_meas, h_w);
     Vector3 tau_mtq = desat_out.tau_mtq_expected;
 
     // Convert to wheel torques, plus desat 
     Vector4 tau_tilde = allocateActuators(tau_NDI, tau_mtq, omega_w);
+
+    // Feed forward compensation for internal wheel dynamics
+    Vector4 tau_ff = Vector4::Zero();
+    if (Param::Controller::FeedForward::enable_friction_comp) {
+        tau_ff += compute_friction_feedforward(omega_w);
+    }
+    if (Param::Controller::FeedForward::enable_ripple_comp) {
+        tau_ff += compute_ripple_feedforward(omega_w, accumulated_time);
+    }
+
+    // Apply feed-forward scaling 
+    tau_ff *= Param::Controller::FeedForward::ff_gain;
+
+    // Add feed-forward to commanded torque 
+    tau_tilde += tau_ff;
+
+    // Update accumulated time for ripple tracking 
+    accumulated_time += dt;
+
     // Anti windup: Check for saturation for NEXT timestep
     is_saturated = checkWheelSaturation(tau_tilde, omega_w);
     // Apply Saturation
@@ -122,7 +164,7 @@ ControllerNDI::NDIOutput ControllerNDI::update(const Param::Vector17& states,
     StateVector states_m;
     states_m.setSegment(0, q_m_out);
     states_m.setSegment(4, omega_m);
-    return NDIOutput{tau_wheel, tau_mtq, states_m};
+    return NDIOutput{tau_wheel, desat_out.m_cmd, states_m};
 }
 
 ControllerNDI::StateVector ControllerNDI::reference_model_dif_eq(const StateVector& x_m, const Reference& reference) 
@@ -386,4 +428,40 @@ bool ControllerNDI::checkWheelSaturation(const Vector4& tau_cmd, const Vector4& 
     }
     
     return torque_saturated || speed_saturated;
+}
+
+ControllerNDI::Vector4 ControllerNDI::compute_friction_feedforward(const Vector4& omega_w) const {
+    // Predict friction torque using controller's model
+    // tau_fric = b*omega + tau_c*sign(omega)
+    
+    Vector4 tau_ff = Vector4::Zero();
+    Scalar b = Param::Controller::FeedForward::b_viscous;
+    Scalar tau_c = Param::Controller::FeedForward::tau_coulomb;
+    Scalar omega_eps = Param::Controller::FeedForward::omega_eps;
+    
+    for (int i = 0; i < 4; ++i) {
+        Scalar sign = std::tanh(omega_w(i) / omega_eps);  // Smooth sign function
+        tau_ff(i) = b * omega_w(i) + tau_c * sign;
+    }
+    
+    return tau_ff;
+}
+
+ControllerNDI::Vector4 ControllerNDI::compute_ripple_feedforward(const Vector4& omega_w, Param::Real time) const {
+    // Predict torque ripple using controller's model
+    // tau_ripple = A*sin(h*theta)
+    // where theta = integral(omega * h) over time
+    
+    Vector4 tau_ff = Vector4::Zero();
+    Scalar amp = Param::Controller::FeedForward::ripple_amp;
+    Scalar h = Param::Controller::FeedForward::ripple_harmonic;
+    
+    for (int i = 0; i < 4; ++i) {
+        // Estimate phase from accumulated time and current wheel speed
+        // This is approximate since we don't track exact phase in controller
+        Scalar phase = h * std::abs(omega_w(i)) * time;
+        tau_ff(i) = amp * std::sin(phase);
+    }
+    
+    return tau_ff;
 }

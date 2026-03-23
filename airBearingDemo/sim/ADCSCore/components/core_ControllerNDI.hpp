@@ -2,7 +2,6 @@
 #define CORE_CONTROLLERNDI_HPP
 
 #include "core_Parameters.hpp"
-#include "core_HelperFunctions.hpp"
 #include "core_Saturate.hpp"
 
 class ControllerNDI {
@@ -26,13 +25,11 @@ public:
     // Constructor
     ControllerNDI();
 
-    NDIOutput update(const Param::Vector17& states,
+    NDIOutput update(const Param::Vector11& states,
                     const Param::Vector10& reference,
-                    const Param::Vector29& measurements, Param::Real dt);
+                    const Param::Vector13& measurements, Param::Real dt);
 
 private:
-    // Initialization Helpers
-    HelperFunctions helpers;
     // Private methods 
     StateVector reference_model_dif_eq(const StateVector& states_m, 
                                        const Reference& reference);
@@ -76,6 +73,10 @@ private:
     bool checkWheelSaturation(const Vector4& tau_cmd, 
                               const Vector4& omega_w);
 
+    // Feed-forward compensation helpers
+    Vector4 compute_friction_feedforward(const Vector4& omega_w) const;
+    Vector4 compute_ripple_feedforward(const Vector4& omega_w, Param::Real time) const;
+
     // Private members
     Param::Matrix3 I;
     Param::Matrix34 S;
@@ -85,23 +86,26 @@ private:
 
     // Limits
     Scalar omega_w_max, omega_w_min;
-    Scalar alpha_w_max, alpha_w_min;
     Scalar tau_w_max, tau_w_min;
     Scalar lambda_min_model;
 
     // Reference Model 
     StateVector x_m;
 
-    // Time Step 
-    Scalar Ts, t_end;
-
     // Gains
     Scalar a0_model, a1_model, a0_plant, a1_plant;
     Scalar k_desat, k_null;
     Scalar m_max, m_min;
 
+    // Air bearing 
+    Scalar h_cg;
+    Scalar m;
+
     // Saturation anti windup 
     bool is_saturated;
+
+    // Feed-forward state tracking 
+    Param::Real accumulated_time;
 };
 
 #endif // CORE_CONTROLLERNDI_HPP

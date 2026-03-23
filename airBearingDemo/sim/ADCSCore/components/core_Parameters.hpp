@@ -9,6 +9,7 @@ namespace Param {
     // TYPE DEFINITIONS
     // ========================================================================
     using Real = Math::Real;
+    using TimeReal = Math::TimeReal;
     using Scalar = Real;
     using Quat = Math::Vec4;
     using Vector3 = Math::Vec3;
@@ -17,6 +18,8 @@ namespace Param {
     using Vector7 = Math::Vec7;
     using Vector17 = Math::Vec17;
     using Vector10 = Math::Vec10;
+    using Vector11 = Math::Vec11;
+    using Vector13 = Math::Vec13;
     using Vector29 = Math::Vec29;
     using Matrix2 = Math::Mat2;
     using Matrix3 = Math::Mat3;
@@ -37,6 +40,11 @@ namespace Param {
         POINT     // NDI controller active
     };
 
+    namespace Apparatus {
+        // Controllers estimate 
+        constexpr Real h_cg = static_cast<Real>(0.005); // [m] CG offset from air bearing pivot
+    }
+
     // ========================================================================
     // SPACECRAFT CONFIGURATION
     // Body frame axis definitions for each function
@@ -52,6 +60,7 @@ namespace Param {
 
     // Math constants
     constexpr Real PI = Math::PI;
+    constexpr Real g = static_cast<Real>(9.80665); // [m/s^2] standard gravity
     constexpr Real deg2rad = PI / static_cast<Real>(180.0);
     constexpr Real rad2deg = static_cast<Real>(180.0) / PI;
 
@@ -78,18 +87,18 @@ namespace Param {
     // ACTUATORS
     // ========================================================================
     namespace Actuators {
-        // Magnetorquers
-        constexpr Real m_max = static_cast<Real>(0.04);
+        // Magnetorquers (disabled for air bearing - no varying B-field)
+        constexpr Real m_max = static_cast<Real>(0.04);  // [A·m²]
         constexpr Real m_min = -m_max;
-        constexpr Real k_desat = static_cast<Real>(25);
+        constexpr Real k_desat = static_cast<Real>(15);
 
         // Reaction Wheels
-        constexpr Real I_wheel = static_cast<Real>(1.13e-4);
-        constexpr Real RPM_max = static_cast<Real>(13600.0);
+        constexpr Real I_wheel = static_cast<Real>(1.13e-6);
+        constexpr Real RPM_max = static_cast<Real>(7500.0);
         constexpr Real RPM_min = -RPM_max;
         constexpr Real omega_w_max = RPM_max * static_cast<Real>(2.0) * PI / static_cast<Real>(60.0);
         constexpr Real omega_w_min = -omega_w_max;
-        constexpr Real tau_w_max = static_cast<Real>(13e-3);
+        constexpr Real tau_w_max = static_cast<Real>(13e-1);
         constexpr Real tau_w_min = -tau_w_max;
         constexpr Real k_null = static_cast<Real>(2e-7);
 
@@ -118,17 +127,38 @@ namespace Param {
     }
 
     // ========================================================================
-    // CONTROLLER GAINS
+    // CONTROLLER GAINS (Tuned for Air Bearing Demo)
     // ========================================================================
     namespace Controller {
-        constexpr Real t_s_plant = static_cast<Real>(25);
-        constexpr Real zeta_plant = static_cast<Real>(0.95);
-        constexpr Real t_s_model = static_cast<Real>(45);
-        constexpr Real zeta_model = static_cast<Real>(0.8);
+        constexpr Real t_s_plant = static_cast<Real>(4);
+        constexpr Real zeta_plant = static_cast<Real>(0.9);
+        constexpr Real t_s_model = static_cast<Real>(6);
+        constexpr Real zeta_model = static_cast<Real>(0.85);
         constexpr Real lambda_min_model = static_cast<Real>(0.1);
+        
+        // B-Dot gains (not used for air bearing, but kept for completeness)
         constexpr Real K_Bdot = static_cast<Real>(100000);
         constexpr Real alpha_BDot = static_cast<Real>(0.95);
         constexpr Real beta_fuse = static_cast<Real>(0.1);
+
+        // Feed-forward compensation for wheel internal dynamics
+        namespace FeedForward {
+            constexpr bool enable_friction_comp = true;           // Compensate friction
+            constexpr bool enable_ripple_comp = false;            // Compensate ripple (experimental)
+            
+            // Friction model parameters (match plant: Kt*I0/omega_nl)
+            // Kt=8.3e-3, I0=0.1A, omega_nl=13600*2*pi/60=1424 rad/s
+            constexpr Real b_viscous = static_cast<Real>(5.83e-7); // [N*m/(rad/s)] corrected
+            constexpr Real tau_coulomb = static_cast<Real>(2.0e-5); // [N*m] Coulomb friction
+            constexpr Real omega_eps = static_cast<Real>(0.1);    // [rad/s] Smoothing for sign
+            
+            // Ripple model parameters (match plant)
+            constexpr Real ripple_amp = static_cast<Real>(2.0e-5); // [N*m] Ripple amplitude
+            constexpr Real ripple_harmonic = static_cast<Real>(1.0); // Harmonic multiple
+            
+            // Feed-forward gain (tune for model mismatch robustness)
+            constexpr Real ff_gain = static_cast<Real>(1.0);      // Scale factor [0, 1]
+        }
     }
 
     // ========================================================================
@@ -161,9 +191,9 @@ namespace Param {
         inline const Matrix6 P_0 = [] {
             Matrix6 m = Matrix6::Zero();
             Real angle_var = (static_cast<Real>(5.0) * deg2rad) * (static_cast<Real>(5.0) * deg2rad);
-            Real rate_var = (static_cast<Real>(0.5) * deg2rad) * (static_cast<Real>(0.5) * deg2rad);
+            Real bias_var = (static_cast<Real>(0.1) * deg2rad) * (static_cast<Real>(0.1) * deg2rad);  // 0.1 deg/s bias uncertainty
             m(0,0) = angle_var; m(1,1) = angle_var; m(2,2) = angle_var;
-            m(3,3) = rate_var;  m(4,4) = rate_var;  m(5,5) = rate_var;
+            m(3,3) = bias_var;  m(4,4) = bias_var;  m(5,5) = bias_var;
             return m;
         }();
 
@@ -174,13 +204,15 @@ namespace Param {
             return m;
         }();
 
+        // Discrete-time process noise (applied per timestep, will be scaled by dt in observer)
         inline const Matrix6 Q = [] {
             Matrix6 q_mat = Matrix6::Zero();
-            Real gyro_density = sigma_gyro_rad / static_cast<Real>(0.15811388); // rad/sqrt(s) (assuming 0.025s sample period)
-            Real density_sq = gyro_density * gyro_density;
-            Real bias_walk_sq = sigma_bias_walk_rad * sigma_bias_walk_rad;
-            q_mat(0,0) = density_sq; q_mat(1,1) = density_sq; q_mat(2,2) = density_sq;
-            q_mat(3,3) = bias_walk_sq; q_mat(4,4) = bias_walk_sq; q_mat(5,5) = bias_walk_sq;
+            // Gyro noise variance per sample: sigma^2
+            Real gyro_var = sigma_gyro_rad * sigma_gyro_rad;
+            // Bias random walk variance per sample: sigma^2
+            Real bias_walk_var = sigma_bias_walk_rad * sigma_bias_walk_rad;
+            q_mat(0,0) = gyro_var; q_mat(1,1) = gyro_var; q_mat(2,2) = gyro_var;
+            q_mat(3,3) = bias_walk_var; q_mat(4,4) = bias_walk_var; q_mat(5,5) = bias_walk_var;
             return q_mat;
         }();
 

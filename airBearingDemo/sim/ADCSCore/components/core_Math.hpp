@@ -4,7 +4,6 @@
 #include <cmath>
 #include <algorithm>
 #include <cstring>
-#include <limits>
 #include <initializer_list>
 
 // ============================================================================
@@ -15,7 +14,7 @@
 namespace Math {
 
 using Real = float; // Change to double if higher precision is needed
-
+using TimeReal = double; // Higher precision for time variables
 
 constexpr Real PI = static_cast<Real>(3.1415926535898);
 // Forward declarations
@@ -744,6 +743,8 @@ using Vec4 = Vec<4>;
 using Vec6 = Vec<6>;
 using Vec7 = Vec<7>;
 using Vec10 = Vec<10>;
+using Vec11 = Vec<11>;
+using Vec13 = Vec<13>;
 using Vec17 = Vec<17>;
 using Vec29 = Vec<29>;
 

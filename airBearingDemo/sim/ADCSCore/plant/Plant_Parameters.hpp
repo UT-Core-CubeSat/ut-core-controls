@@ -8,6 +8,7 @@ namespace PlantParam {
     // TYPE DEFINITIONS (mirror core for compatibility)
     // ========================================================================
     using Real = Math::Real;
+    using TimeReal = Math::TimeReal;
     using Scalar = Real;
     using Quat = Math::Vec4;
     using Vector3 = Math::Vec3;
@@ -16,6 +17,7 @@ namespace PlantParam {
     using Vector7 = Math::Vec7;
     using Vector17 = Math::Vec17;
     using Vector10 = Math::Vec10;
+    using Vector11 = Math::Vec11;
     using Vector29 = Math::Vec29;
     using Matrix2 = Math::Mat2;
     using Matrix3 = Math::Mat3;
@@ -24,35 +26,6 @@ namespace PlantParam {
     using Matrix4 = Math::Mat4;
     using Matrix6 = Math::Mat6;
 
-    // State Machine 
-    enum class MissionMode { 
-    SAFE,      // Safe mode, totally off
-    DETUMBLE,       // Detumble, minimal actuator use
-    STANDBY,    // Sun-pointing for power generation
-    DOWNLINK,   // Point antenna face at ground station
-    IMAGING,    // Point boresight at earth target (nadir or specific)
-    CUSTOM      // Escape hatch for explicit vector control
-    };
-
-    struct GroundTarget {
-    double latitude;   // [deg] geodetic
-    double longitude;  // [deg]
-    double altitude;   // [m] above WGS84 ellipsoid (0 for surface)
-    };
-
-    struct Command {
-        MissionMode mode;
-        
-        // Used for DOWNLINK and IMAGING modes
-        GroundTarget target;
-        
-        // For IMAGING: true = point at target, false = point nadir
-        bool track_target;
-        
-        // For CUSTOM mode only (escape hatch)
-        Math::Vec<3> body_axis;
-        Math::Vec<3> target_eci;
-    };
     // Math constants
     constexpr Real PI = static_cast<Real>(3.1415926535898);
     constexpr Real deg2rad = PI / static_cast<Real>(180.0);
@@ -62,31 +35,99 @@ namespace PlantParam {
     // SIMULATION TIMING
     // ========================================================================
     namespace SimTime {
-        constexpr Real Ts = static_cast<Real>(0.025);  // Sample period [s] - 40 Hz loop rate;          // Sample period [s] (from shared)
+        constexpr Real Ts = static_cast<Real>(0.025);  // Sample period [s] - 40 Hz loop rate
         constexpr Real t_start = static_cast<Real>(0.0);            // Simulation start [s]
-        constexpr Real t_end = static_cast<Real>(2000.0);           // Simulation end [s]
-        constexpr Real t_plot = static_cast<Real>(1.0);             // Data logging interval [s]
+        constexpr Real t_end = static_cast<Real>(120.0);           // Simulation end [s]
+        constexpr Real t_plot = static_cast<Real>(0.1);             // Data logging interval [s]
         constexpr Real speed = static_cast<Real>(1.0);              // Simulation speed multiplier
-        inline const Real epoch_timestamp = static_cast<Real>(std::time(nullptr));
+        inline const TimeReal epoch_timestamp = static_cast<TimeReal>(std::time(nullptr));  // Use TimeReal for Unix timestamp precision
     }
 
-    // ========================================================================
-    // ENVIRONMENT MODELS
-    // ========================================================================
-    namespace Earth {
-        constexpr Real G = static_cast<Real>(6.67408e-11);          // [m^3/kg/s^2] Gravitational constant
-        constexpr Real m_earth = static_cast<Real>(5.974e24);       // [kg] Earth mass
-        constexpr Real mu_E = G * m_earth;       // [m^3/s^2] Gravitational parameter
-        constexpr Real r_E = static_cast<Real>(6378137.0);          // [m] Earth radius
-        constexpr Real J2 = static_cast<Real>(1.08262668e-3);       // J2 perturbation
-        static const Vector3 omega_earth = Vector3{static_cast<Real>(0.0), static_cast<Real>(0.0), static_cast<Real>(7.2921159e-5)};
+    // In Plant_Parameters.hpp, replace/expand the Apparatus namespace:
+
+    namespace Apparatus {
+        // =====================================================================
+        // AIR BEARING TEST BED GEOMETRY
+        // =====================================================================
+        // Reference: Pivot point is at center of air bearing sphere
+        // Z-axis points UP (opposite to gravity)
+        // 
+        //         +Z (up)
+        //          ^
+        //          |    CubeSat
+        //          |   +------+
+        //          |   |      |  <-- h (CG offset from pivot)
+        //          +---|  CG  |
+        //       Pivot  |      |
+        //          |   +------+
+        //          |      |
+        //          v   Bearing
+        //         -Z (down)
+        // =====================================================================
+        
+        // CG offset from pivot point [m]
+        // Positive h = CG above pivot (unstable without control)
+        // Negative h = CG below pivot (passively stable, pendulum-like)
+        // |h| should be small (1-20mm) for challenging but achievable control
+        constexpr Real h_cg = static_cast<Real>(0.000);  // [m] 5mm above pivot
+        
+        // Distance from pivot to base of cubesat [m]
+        constexpr Real P = static_cast<Real>(0.1);
+        
+        // =====================================================================
+        // DISTURBANCE PARAMETERS
+        // =====================================================================
+        // Disturbance force application point (measured from pivot) [m]
+        constexpr Real r_disturbance = static_cast<Real>(0.15);  // Applied at side of cubesat
+        
+        // Disturbance force magnitude [N] - simulates finger push
+        // ANALYSIS: Wheel torque capability ~17 mN·m per axis
+        // Max rejectable disturbance: τ = F*r → F = 0.017/0.15 = 0.11 N
+        // Using 0.08 N for ~20% margin: τ = 0.08*0.15 = 12 mN·m
+        constexpr Real F_disturbance_max = static_cast<Real>(1.0);  // [N] gentle push
+        
+        // Disturbance timing
+        constexpr Real T_disturbance_period = static_cast<Real>(15.0);  // [s] Period of periodic disturbance
+        constexpr Real T_disturbance_duration = static_cast<Real>(0.5); // [s] Duration of each push
+        
+        // Disturbance direction in body frame (normalized)
+        static const Vector3 disturbance_direction = Vector3{
+            static_cast<Real>(1.0), static_cast<Real>(0.0), static_cast<Real>(0.0)
+        };  // Push along +X body axis
+        
+        // =====================================================================
+        // AIR BEARING FRICTION
+        // =====================================================================
+        // Viscous friction coefficient [Nm/(rad/s)]
+        // Typical air bearings: 1e-6 to 1e-4 Nm·s/rad
+        constexpr Real b_friction = static_cast<Real>(1e-5);
+        
+        // =====================================================================
+        // HELMHOLTZ COILS (for magnetorquer testing)
+        // =====================================================================
+        // Magnetic field magnitude in lab frame [T]
+        static const Vector3 B_helmholtz = Vector3{
+            static_cast<Real>(30e-5),   // 30 µT in X
+            static_cast<Real>(30e-5),     // 30 µT in Y  
+            static_cast<Real>(30e-5)      // 30 µT in Z
+        };
+        
+        // Legacy (can remove)
+        static const Vector3 helmholtz_mag = B_helmholtz;
+    }
+    
+    // =====================================================================
+    // GRAVITY CONSTANT (for air bearing dynamics)
+    // =====================================================================
+    namespace Environment {
+        constexpr Real g = static_cast<Real>(9.80665);  // [m/s^2]
+        static const Vector3 g_inertial = Vector3{
+            static_cast<Real>(0.0), 
+            static_cast<Real>(0.0), 
+            static_cast<Real>(-9.80665)  // Gravity points down (-Z in inertial)
+        };
     }
 
-    namespace Sun {
-        constexpr Real S0 = static_cast<Real>(1361.0);              // [W/m^2] Solar constant
-        constexpr Real c = static_cast<Real>(299792458.0);          // [m/s] Speed of light
-        constexpr Real AU = static_cast<Real>(1.495978707e11);      // [m] Astronomical Unit
-    }
 
     // ========================================================================
     // SPACECRAFT TRUTH (what the plant actually simulates)
@@ -105,77 +146,21 @@ namespace PlantParam {
             return m;
         }();
         static const Vector3 dim = Vector3{static_cast<Real>(0.1), static_cast<Real>(0.1), static_cast<Real>(0.3)};
-    }
+    }                               // Eccentricity
 
-    // ========================================================================
-    // ORBIT & INITIAL CONDITIONS
-    // ========================================================================
-    namespace Orbit {
-        constexpr Real altitude = static_cast<Real>(600E3);                        // [m]
-        constexpr Real inclination = static_cast<Real>(45.0 * deg2rad);    // [rad]
-        constexpr Real RAAN = static_cast<Real>(0.0 * deg2rad);
-        constexpr Real argPeriapsis = static_cast<Real>(0.0 * deg2rad);
-        constexpr Real trueAnomaly = static_cast<Real>(0.0 * deg2rad);
-        constexpr Real a = Earth::r_E + altitude;               // [m] Semi-major axis
-        constexpr Real e = static_cast<Real>(0.0);                                 // Eccentricity
+     struct FullState {
+         Vector4 q0;
+         Vector3 omega;
+         Vector4 omega_wheel;
+     };
 
-        struct FullState {
-            Vector3 r_ECI;
-            Vector3 v_ECI;
-            Vector4 q0;
-            Vector3 omega;
-            Vector4 omega_wheel;
-        };
-
-        static const FullState InitialState = [] {
-            Real nu = static_cast<Real>(trueAnomaly);
-            Real i = static_cast<Real>(inclination);
-            Real O = static_cast<Real>(RAAN);
-            Real w = static_cast<Real>(argPeriapsis);
-            Real mu = Earth::mu_E;
-
-            Real r_mag = a * (static_cast<Real>(1.0) - e * e) / (static_cast<Real>(1.0) + e * std::cos(nu));
-
-            Vector3 r_PQW;
-            r_PQW(0) = r_mag * std::cos(nu);
-            r_PQW(1) = r_mag * std::sin(nu);
-            r_PQW(2) = static_cast<Real>(0.0);
-
-            Vector3 v_PQW;
-            v_PQW(0) = -std::sqrt(mu / (a * (static_cast<Real>(1.0) - e * e))) * std::sin(nu);
-            v_PQW(1) = std::sqrt(mu / (a * (static_cast<Real>(1.0) - e * e))) * (e + std::cos(nu));
-            v_PQW(2) = static_cast<Real>(0.0);
-
-            // Rotation matrices
-            Real cO = std::cos(O), sO = std::sin(O);
-            Real ci = std::cos(i), si = std::sin(i);
-            Real cw = std::cos(w), sw = std::sin(w);
-
-            Matrix3 RzO, Rxi, Rzw;
-            RzO(0,0) = cO;  RzO(0,1) = -sO; RzO(0,2) = static_cast<Real>(0.0);
-            RzO(1,0) = sO;  RzO(1,1) = cO;  RzO(1,2) = static_cast<Real>(0.0);
-            RzO(2,0) = static_cast<Real>(0.0); RzO(2,1) = static_cast<Real>(0.0); RzO(2,2) = static_cast<Real>(1.0);
-
-            Rxi(0,0) = static_cast<Real>(1.0); Rxi(0,1) = static_cast<Real>(0.0); Rxi(0,2) = static_cast<Real>(0.0);
-            Rxi(1,0) = static_cast<Real>(0.0); Rxi(1,1) = ci;  Rxi(1,2) = -si;
-            Rxi(2,0) = static_cast<Real>(0.0); Rxi(2,1) = si;  Rxi(2,2) = ci;
-
-            Rzw(0,0) = cw;  Rzw(0,1) = -sw; Rzw(0,2) = static_cast<Real>(0.0);
-            Rzw(1,0) = sw;  Rzw(1,1) = cw;  Rzw(1,2) = static_cast<Real>(0.0);
-            Rzw(2,0) = static_cast<Real>(0.0); Rzw(2,1) = static_cast<Real>(0.0); Rzw(2,2) = static_cast<Real>(1.0);
-
-            Matrix3 Q = RzO * Rxi * Rzw;
-            Vector3 r_ECI = Q * r_PQW;
-            Vector3 v_ECI = Q * v_PQW;
-
-            Vector4 q0;
-            q0(0) = static_cast<Real>(1.0); q0(1) = static_cast<Real>(0.0); q0(2) = static_cast<Real>(0.0); q0(3) = static_cast<Real>(0.0);
-            Vector3 w0 = Vector3::Zero();
-            Vector4 rw0 = Vector4::Zero();
-
-            return FullState{r_ECI, v_ECI, q0, w0, rw0};
-        }();
-    }
+    static const FullState InitialState = [] {
+        Vector4 q0;
+        q0(0) = static_cast<Real>(1.0); q0(1) = static_cast<Real>(0.0); q0(2) = static_cast<Real>(0.0); q0(3) = static_cast<Real>(0.0);
+        Vector3 w0 = Vector3::Zero();
+        Vector4 rw0 = Vector4::Zero();
+        return FullState{q0, w0, rw0};
+    }();
 
     // ========================================================================
     // SENSOR MODELS (Truth: biases and noise for measurement generation)
@@ -236,12 +221,43 @@ namespace PlantParam {
         constexpr Real m_min = -m_max;
 
         // Reaction Wheels
-        constexpr Real I_wheel = static_cast<Real>(1.13e-4);
-        constexpr Real omega_w_max = static_cast<Real>(13600.0) * static_cast<Real>(2.0) * PI / static_cast<Real>(60.0);
+        constexpr Real I_wheel = static_cast<Real>(1.13e-6);
+        constexpr Real omega_w_max = static_cast<Real>(7500.0) * static_cast<Real>(2.0) * PI / static_cast<Real>(60.0);
         constexpr Real omega_w_min = -omega_w_max;
-        constexpr Real tau_w_max = static_cast<Real>(13e-3);
+        constexpr Real tau_w_max = static_cast<Real>(13e-1);
         constexpr Real tau_w_min = -tau_w_max;
 
+
+        // Wheel Motor Electrical/Mechanical Specs 
+        namespace WheelMotor {
+            constexpr Real Kt = static_cast<Real>(8.3e-3);         // [N*m/A] Torque constant
+            constexpr Real Ke = static_cast<Real>(8.3e-3);         // [V/(rad/s)] Back-EMF constant
+            constexpr Real R = static_cast<Real>(3.95);            // [ohm] Phase-to-phase resistance
+            constexpr Real L = static_cast<Real>(0.12e-3);         // [H] Phase-to-phase inductance
+            constexpr Real tau_m = static_cast<Real>(0.0649);      // [s] Mechanical time constant
+            constexpr Real tau_e = static_cast<Real>(0.03e-3);     // [s] Electrical time constant
+            constexpr Real I0 = static_cast<Real>(0.1);            // [A] Typical no-load current
+            constexpr Real no_load_rpm = static_cast<Real>(13600.0); // [rpm] No-load speed
+            constexpr Real omega_no_load = no_load_rpm * static_cast<Real>(2.0) * PI / static_cast<Real>(60.0); // [rad/s]
+        }
+
+        // Wheel Internal Dynamics (unmodeled effects)
+        namespace WheelDynamics {
+            constexpr bool enable_motor_dynamics = true;           // First-order motor torque lag
+            constexpr bool enable_friction = true;                 // Viscous + Coulomb friction
+            constexpr bool enable_ripple = true;                   // Torque ripple / vibration
+
+            constexpr Real motor_tau = WheelMotor::tau_m;          // [s] Motor torque time constant
+
+            // Friction model: tau_fric = b*omega + tau_c*sign(omega)
+            constexpr Real b_viscous = WheelMotor::Kt * WheelMotor::I0 / WheelMotor::omega_no_load; // [N*m/(rad/s)]
+            constexpr Real tau_coulomb = static_cast<Real>(2.0e-5); // [N*m] Coulomb friction (tunable)
+            constexpr Real omega_eps = static_cast<Real>(0.1);     // [rad/s] Smoothing for sign(omega)
+
+            // Torque ripple model: tau_ripple = A*sin(h*theta)
+            constexpr Real ripple_amp = static_cast<Real>(2.0e-5); // [N*m] Ripple amplitude (tunable)
+            constexpr Real ripple_harmonic = static_cast<Real>(1.0); // [ ] Multiples of wheel spin rate
+        }
         // Wheel Geometry (truth)
         constexpr Real wheel_thickness = static_cast<Real>(0.0112);
         constexpr Real wheel_radius = static_cast<Real>(0.0162);

@@ -19,11 +19,10 @@ public:
     ControllerManager();
 
     // Update Method
-    ControlOutput update(const Param::Vector17& states_hat, 
+    ControlOutput update(const Param::Vector11& states_hat, 
                          const Param::Vector10& reference,
-                         const Param::Vector29& measurements,
-                         const Param::PointingMode mode,
-                         const Param::Real dt);
+                         const Param::Vector13& measurements,
+                         const Param::PointingMode mode, const Param::Real dt);
 private:
     // Controllers
     ControllerNDI NDI;

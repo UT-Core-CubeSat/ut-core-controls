@@ -7,12 +7,15 @@ HelperFunctions::WMMCoeffs::WMMCoeffs() {
     epoch = static_cast<Scalar>(2025.0);      // Model Epoch
     a = static_cast<Scalar>(6371200.0);       // Reference Radius (meters)
 
-    // 2. Resize Vectors (Degree 12 Model -> Size 13x13)
-    int size = MAX_DEGREE + 1; // 12 + 1 = 13
-    g.resize(size, std::vector<Scalar>(size, static_cast<Scalar>(0.0)));
-    h.resize(size, std::vector<Scalar>(size, static_cast<Scalar>(0.0)));
-    dg.resize(size, std::vector<Scalar>(size, static_cast<Scalar>(0.0)));
-    dh.resize(size, std::vector<Scalar>(size, static_cast<Scalar>(0.0)));
+    // 2. Zero-initialize fixed-size arrays
+    for (int i = 0; i < SIZE; ++i) {
+        for (int j = 0; j < SIZE; ++j) {
+            g[i][j] = static_cast<Scalar>(0.0);
+            h[i][j] = static_cast<Scalar>(0.0);
+            dg[i][j] = static_cast<Scalar>(0.0);
+            dh[i][j] = static_cast<Scalar>(0.0);
+        }
+    }
 
     // 3. Populate Coefficients [n][m]
     // Columns: n, m, g, h, dg, dh
@@ -136,49 +139,49 @@ HelperFunctions::HelperFunctions() {
 
 }
 
-HelperFunctions::Scalar HelperFunctions::julianDate(Scalar unixTimestamp) {
-    return (unixTimestamp / static_cast<Scalar>(86400.0)) + static_cast<Scalar>(2440587.5);
+HelperFunctions::TimeReal HelperFunctions::julianDate(Param::TimeReal unixTimestamp) {
+    return (unixTimestamp / static_cast<Param::TimeReal>(86400.0)) + static_cast<Param::TimeReal>(2440587.5);
 }
 
-HelperFunctions::Vector3 HelperFunctions::earth2sun(Scalar jd) {
+HelperFunctions::Vector3 HelperFunctions::earth2sun(Param::TimeReal jd) {
     // MATLAB Logic
-    Scalar T = (jd - static_cast<Scalar>(2451545.0)) / static_cast<Scalar>(36525.0);
+    TimeReal T = (jd - static_cast<TimeReal>(2451545.0)) / static_cast<TimeReal>(36525.0);
 
     // Mean longitude & anomaly
-    Scalar L_0 = static_cast<Scalar>(280.46646) + static_cast<Scalar>(36000.76983)*T + static_cast<Scalar>(0.0003032)*T*T;
-    Scalar M   = static_cast<Scalar>(357.52911) + static_cast<Scalar>(35999.05029)*T - static_cast<Scalar>(0.0001537)*T*T;
+    TimeReal L_0 = static_cast<TimeReal>(280.46646) + static_cast<TimeReal>(36000.76983)*T + static_cast<TimeReal>(0.0003032)*T*T;
+    TimeReal M   = static_cast<TimeReal>(357.52911) + static_cast<TimeReal>(35999.05029)*T - static_cast<TimeReal>(0.0001537)*T*T;
 
     // Eccentricity
-    Scalar e_earth = static_cast<Scalar>(0.016708634) - static_cast<Scalar>(0.000042037)*T - static_cast<Scalar>(0.0000001267)*T*T;
+    TimeReal e_earth = static_cast<TimeReal>(0.016708634) - static_cast<TimeReal>(0.000042037)*T - static_cast<TimeReal>(0.0000001267)*T*T;
 
     // Equation of Center
-    Scalar M_rad = M * Param::deg2rad;
+    TimeReal M_rad = M * static_cast<TimeReal>(Param::deg2rad);
     
-    Scalar C = (static_cast<Scalar>(1.914602) - static_cast<Scalar>(0.004817)*T - static_cast<Scalar>(0.000014)*T*T) * std::sin(M_rad) +
-               (static_cast<Scalar>(0.019993) - static_cast<Scalar>(0.000101)*T) * std::sin(static_cast<Scalar>(2.0)*M_rad) +
-               static_cast<Scalar>(0.000289) * std::sin(static_cast<Scalar>(3.0)*M_rad);
+    TimeReal C = (static_cast<TimeReal>(1.914602) - static_cast<TimeReal>(0.004817)*T - static_cast<TimeReal>(0.000014)*T*T) * std::sin(M_rad) +
+               (static_cast<TimeReal>(0.019993) - static_cast<TimeReal>(0.000101)*T) * std::sin(static_cast<TimeReal>(2.0)*M_rad) +
+               static_cast<TimeReal>(0.000289) * std::sin(static_cast<TimeReal>(3.0)*M_rad);
 
-    Scalar true_long = L_0 + C;
-    Scalar true_anom = M + C;
+    TimeReal true_long = L_0 + C;
+    TimeReal true_anom = M + C;
     
     // Distance (AU)
-    Scalar numer = static_cast<Scalar>(0.999722); // Interpolated value from MATLAB
-    Scalar true_anom_rad = true_anom * Param::deg2rad;
-    Scalar D = numer * (static_cast<Scalar>(1.0) - e_earth*e_earth) / (static_cast<Scalar>(1.0) + e_earth * std::cos(true_anom_rad));
+    TimeReal numer = static_cast<TimeReal>(0.999722); // Interpolated value from MATLAB
+    TimeReal true_anom_rad = true_anom * static_cast<TimeReal>(Param::deg2rad);
+    TimeReal D = numer * (static_cast<TimeReal>(1.0) - e_earth*e_earth) / (static_cast<TimeReal>(1.0) + e_earth * std::cos(true_anom_rad));
 
     // Obliquity
-    Scalar eps = static_cast<Scalar>(23.439291) - (static_cast<Scalar>(46.8150)/static_cast<Scalar>(3600.0))*T - (static_cast<Scalar>(0.00059)/static_cast<Scalar>(3600.0))*T*T + (static_cast<Scalar>(0.001813)/static_cast<Scalar>(3600.0))*T*T*T;
+    TimeReal eps = static_cast<TimeReal>(23.439291) - (static_cast<TimeReal>(46.8150)/static_cast<TimeReal>(3600.0))*T - (static_cast<TimeReal>(0.00059)/static_cast<TimeReal>(3600.0))*T*T + (static_cast<TimeReal>(0.001813)/static_cast<TimeReal>(3600.0))*T*T*T;
 
     // Coordinates
-    Scalar eps_rad = eps * Param::deg2rad;
-    Scalar tl_rad = true_long * Param::deg2rad;
+    TimeReal eps_rad = eps * static_cast<TimeReal>(Param::deg2rad);
+    TimeReal tl_rad = true_long * static_cast<TimeReal>(Param::deg2rad);
 
-    Scalar x = D * std::cos(tl_rad);
-    Scalar y = D * std::cos(eps_rad) * std::sin(tl_rad);
-    Scalar z = D * std::sin(eps_rad) * std::sin(tl_rad);
+    TimeReal x = D * std::cos(tl_rad);
+    TimeReal y = D * std::cos(eps_rad) * std::sin(tl_rad);
+    TimeReal z = D * std::sin(eps_rad) * std::sin(tl_rad);
 
     Vector3 R; 
-    R(0) = x; R(1) = y; R(2) = z;
+    R(0) = static_cast<Scalar>(x); R(1) = static_cast<Scalar>(y); R(2) = static_cast<Scalar>(z);
     return R.normalized();
 }
 
@@ -244,12 +247,12 @@ HelperFunctions::Vector3 HelperFunctions::quatRotate(const Quat& q, const Vector
     return result;
 }
 
-HelperFunctions::Matrix3 HelperFunctions::dcmeci2ecef(Scalar jd) {
-    Scalar GMST = std::fmod(static_cast<Scalar>(280.46061837) + static_cast<Scalar>(360.98564736629)*(jd - static_cast<Scalar>(2451545.0)), static_cast<Scalar>(360.0));
+HelperFunctions::Matrix3 HelperFunctions::dcmeci2ecef(Param::TimeReal jd) {
+    TimeReal GMST = std::fmod(static_cast<TimeReal>(280.46061837) + static_cast<TimeReal>(360.98564736629)*(jd - static_cast<TimeReal>(2451545.0)), static_cast<TimeReal>(360.0));
     // Handle negative mod result in C++
-    if (GMST < static_cast<Scalar>(0)) GMST += static_cast<Scalar>(360.0);
+    if (GMST < static_cast<TimeReal>(0)) GMST += static_cast<TimeReal>(360.0);
 
-    Scalar theta = GMST * Param::deg2rad;
+    Scalar theta = static_cast<Scalar>(GMST * static_cast<TimeReal>(Param::deg2rad));
     Scalar c = std::cos(theta);
     Scalar s = std::sin(theta);
     
@@ -260,7 +263,7 @@ HelperFunctions::Matrix3 HelperFunctions::dcmeci2ecef(Scalar jd) {
     return C;
 }
 
-HelperFunctions::Vector3 HelperFunctions::eci2ecef(const Vector3& r_eci, Scalar jd) {
+HelperFunctions::Vector3 HelperFunctions::eci2ecef(const Vector3& r_eci, Param::TimeReal jd) {
     Matrix3 C = dcmeci2ecef(jd);
     return C * r_eci;
 }
@@ -328,32 +331,36 @@ HelperFunctions::Vector3 HelperFunctions::wrldmagm(Scalar lat, Scalar lon, Scala
     
     Scalar theta = (Param::PI / static_cast<Scalar>(2.0)) - phi_gc; // Colatitude
     
-    // 3. Precompute sin/cos(m*lon)
-    int Nmax = WMMCoeffs::MAX_DEGREE;
-    std::vector<Scalar> cosmlon(Nmax + 1);
-    std::vector<Scalar> sinmlon(Nmax + 1);
+    // 3. Precompute sin/cos(m*lon) - fixed-size arrays
+    constexpr int Nmax = WMMCoeffs::MAX_DEGREE;
+    constexpr int arrSize = Nmax + 1;
+    Scalar cosmlon[arrSize];
+    Scalar sinmlon[arrSize];
     for (int m = 0; m <= Nmax; ++m) {
         cosmlon[m] = std::cos(m * lon);
         sinmlon[m] = std::sin(m * lon);
     }
     
-    // 4. Time Adjustment
+    // 4. Time Adjustment - use local fixed-size arrays
     Scalar dt = decYear - wmm.epoch;
-    std::vector<std::vector<Scalar>> g = wmm.g; 
-    std::vector<std::vector<Scalar>> h = wmm.h;
+    Scalar g_adj[WMMCoeffs::SIZE][WMMCoeffs::SIZE];
+    Scalar h_adj[WMMCoeffs::SIZE][WMMCoeffs::SIZE];
     
-    for (int n = 1; n <= Nmax; ++n) {
+    for (int n = 0; n <= Nmax; ++n) {
         for (int m = 0; m <= n; ++m) {
-            g[n][m] += wmm.dg[n][m] * dt;
-            h[n][m] += wmm.dh[n][m] * dt;
-            // Convert nT to Tesla
-            g[n][m] *= static_cast<Scalar>(1e-9);
-            h[n][m] *= static_cast<Scalar>(1e-9);
+            g_adj[n][m] = (wmm.g[n][m] + wmm.dg[n][m] * dt) * static_cast<Scalar>(1e-9);
+            h_adj[n][m] = (wmm.h[n][m] + wmm.dh[n][m] * dt) * static_cast<Scalar>(1e-9);
         }
     }
 
-    // 5. Schmidt Semi-Normalized Polynomials
-    std::vector<std::vector<Scalar>> P(Nmax + 2, std::vector<Scalar>(Nmax + 2, static_cast<Scalar>(0.0)));
+    // 5. Schmidt Semi-Normalized Polynomials - fixed-size array
+    constexpr int Psize = WMMCoeffs::P_SIZE;
+    Scalar P[Psize][Psize];
+    for (int i = 0; i < Psize; ++i) {
+        for (int j = 0; j < Psize; ++j) {
+            P[i][j] = static_cast<Scalar>(0.0);
+        }
+    }
     P[0][0] = static_cast<Scalar>(1.0); 
 
     for (int n = 1; n <= Nmax; ++n) {
@@ -392,8 +399,8 @@ HelperFunctions::Vector3 HelperFunctions::wrldmagm(Scalar lat, Scalar lon, Scala
         Scalar ar_pwr = static_cast<Scalar>(std::pow(a_over_r, n + 2)); // (a/r)^(n+2)
         
         for (int m = 0; m <= n; ++m) {
-            Scalar V = g[n][m]*cosmlon[m] + h[n][m]*sinmlon[m];
-            Scalar W = -g[n][m]*sinmlon[m] + h[n][m]*cosmlon[m];
+            Scalar V = g_adj[n][m]*cosmlon[m] + h_adj[n][m]*sinmlon[m];
+            Scalar W = -g_adj[n][m]*sinmlon[m] + h_adj[n][m]*cosmlon[m];
             
             Scalar dP = diff_legendre(P, n, m, theta);
             
@@ -415,7 +422,7 @@ HelperFunctions::Vector3 HelperFunctions::wrldmagm(Scalar lat, Scalar lon, Scala
     return out;
 }
 
-HelperFunctions::Scalar HelperFunctions::diff_legendre(const std::vector<std::vector<Scalar>>& P, 
+HelperFunctions::Scalar HelperFunctions::diff_legendre(Scalar P[][WMMCoeffs::P_SIZE], 
                                                        int n, int m, Scalar theta) 
 {
     if (n == 0) return static_cast<Scalar>(0.0);

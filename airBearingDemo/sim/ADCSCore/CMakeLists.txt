@@ -22,7 +22,6 @@ endif()
 # ============================================================================
 # INCLUDE DIRECTORIES
 # ============================================================================
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/components)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plant)
 
@@ -30,18 +29,16 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/plant)
 # CORE LIBRARY (Flight Software - the "black box")
 # ============================================================================
 set(CORE_SOURCES
-    ADCSCore.cpp
+    components/ADCSCore.cpp
     components/core_Observer.cpp
     components/core_ControllerManager.cpp
     components/core_ControllerNDI.cpp
     components/core_ControllerBDot.cpp
-    components/core_ReferenceGenerator.cpp
     components/core_HelperFunctions.cpp
 )
 
 add_library(ADCSCore STATIC ${CORE_SOURCES})
 target_include_directories(ADCSCore PUBLIC 
-    ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/components
 )
 
@@ -51,14 +48,12 @@ target_include_directories(ADCSCore PUBLIC
 set(PLANT_SOURCES
     plant/Dynamics.cpp
     plant/Sensors.cpp
-    plant/two_body.cpp
 )
 
 add_library(Plant STATIC ${PLANT_SOURCES})
 target_include_directories(Plant PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/plant
     ${CMAKE_CURRENT_SOURCE_DIR}/components
-    ${CMAKE_CURRENT_SOURCE_DIR}  # For ADCSCore.hpp access
 )
 target_link_libraries(Plant ADCSCore)
 

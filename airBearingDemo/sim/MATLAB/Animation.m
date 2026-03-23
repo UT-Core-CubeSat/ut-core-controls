@@ -35,7 +35,7 @@ classdef Animation < handle
         r_E
         nu_0
         LAN
-        i
+        inc
         omega
         a
         e
@@ -64,7 +64,7 @@ classdef Animation < handle
             self.r_E = Param.r_E;
             self.nu_0 = Param.trueAnomaly;
             self.LAN = Param.RAAN;
-            self.i = Param.inclination;
+            self.inc = Param.inclination;
             self.omega = Param.argPeriapsis;
             self.a   = Param.a;
             self.e   = Param.e;
@@ -99,9 +99,9 @@ classdef Animation < handle
             self.palette_y = [0 1 0];
             self.palette_z = [0 0 1];
 
-            % Initial state
-            state = Param.states_init(1:13);
-            q_init = state(7:10);
+            % Initial state (11 elements: q[1:4], omega[5:7], omega_wheel[8:11])
+            state = Param.states_init(1:11);
+            q_init = state(1:4);
             R_init = self.quat2rotm(q_init);
             q_ref  = q_init;
             R_ref  = self.quat2rotm(q_ref);
@@ -201,9 +201,9 @@ classdef Animation < handle
                 nus    = linspace(0,2*pi,500);
                 r_vals = self.a*(1-self.e^2)./(1+self.e*cos(nus));
                 r_PQW  = [r_vals.*cos(nus); r_vals.*sin(nus); zeros(size(nus))];
-                Omega  = self.LAN; inc = self.i; w = self.omega;
+                Omega  = self.LAN; incl = self.inc; w = self.omega;
                 RzO = [cos(Omega) -sin(Omega) 0; sin(Omega) cos(Omega) 0; 0 0 1];
-                Rxi = [1 0 0; 0 cos(inc) -sin(inc); 0 sin(inc) cos(inc)];
+                Rxi = [1 0 0; 0 cos(incl) -sin(incl); 0 sin(incl) cos(incl)];
                 Rzw = [cos(w) -sin(w) 0; sin(w) cos(w) 0; 0 0 1];
                 Q   = RzO*Rxi*Rzw;
                 r_ECI= Q*r_PQW;
@@ -232,7 +232,8 @@ classdef Animation < handle
         function update(self, state, reference, mode)
             if ~isempty(self.ax_orientation) && isvalid(self.ax_orientation)
                 % Rotate the entire satellite via hgtransform (BODY->ECI)
-                q = state(7:10) / norm(state(7:10));
+                % State vector: q[1:4], omega[5:7], omega_wheel[8:11]
+                q = state(1:4) / norm(state(1:4));
                 R = self.quat2rotm(q);
                 M = eye(4); M(1:3,1:3) = R; % no translation (body centered)
                 if ~isempty(self.hT) && isvalid(self.hT)
@@ -258,7 +259,7 @@ classdef Animation < handle
                         q_ref = reference(1:4);
                         R_ref = self.quat2rotm(q_ref);
                         scale = self.sat_points(1,1)*6;
-                        O = [0;0;0];
+                        O = [0;0;0]; %#ok<*NASGU>
                         set(self.ref_quiver_handles(1), 'UData', R_ref(1,1)*scale, 'VData', R_ref(2,1)*scale, 'WData', R_ref(3,1)*scale);
                         set(self.ref_quiver_handles(2), 'UData', R_ref(1,2)*scale, 'VData', R_ref(2,2)*scale, 'WData', R_ref(3,2)*scale);
                         set(self.ref_quiver_handles(3), 'UData', R_ref(1,3)*scale, 'VData', R_ref(2,3)*scale, 'WData', R_ref(3,3)*scale);
@@ -313,7 +314,7 @@ classdef Animation < handle
             Xbot = Xtop; Ybot = Xtop; Zbot = Xtop;
 
             for i = 1:n_wheels
-                r_top = r_top_all(:,i);
+                r_top = r_top_all(:,i); %#ok<*PROP>
                 r_bot = r_bottom_all(:,i);
                 v_axis = r_top - r_bot;
                 L = norm(v_axis);

@@ -10,9 +10,9 @@ ControllerManager::ControllerManager()
 
 }
 
-ControllerManager::ControlOutput ControllerManager::update(const Param::Vector17& states_hat, 
+ControllerManager::ControlOutput ControllerManager::update(const Param::Vector11& states_hat, 
                                                             const Param::Vector10& reference,
-                                                            const Param::Vector29& measurements,
+                                                            const Param::Vector13& measurements,
                                                             const Param::PointingMode mode, Param::Real dt) {
     ControlOutput output;
 
@@ -25,10 +25,10 @@ ControllerManager::ControlOutput ControllerManager::update(const Param::Vector17
         // Structure is [Wheel(4); MTQ(3)]. Set Wheels to 0.
         //output.tau << 0.0, 0.0, 0.0, 0.0, bdot_out.tau_sat;
         output.tau = Param::Vector7::Zero();
-        output.tau(4) = bdot_out.tau_sat(0);
-        output.tau(5) = bdot_out.tau_sat(1);
-        output.tau(6) = bdot_out.tau_sat(2);
-        output.states_m = bdot_out.states_m;
+        output.tau(4) = bdot_out(0);
+        output.tau(5) = bdot_out(1);
+        output.tau(6) = bdot_out(2);
+        output.states_m = Param::Vector7::Zero(); // B-Dot does not use states_m
 
     } else if (mode == Param::PointingMode::POINT) {
         // NDI Controller
