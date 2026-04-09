@@ -222,7 +222,7 @@ namespace PlantParam {
 
         // Reaction Wheels
         constexpr Real I_wheel = static_cast<Real>(1.13e-6);
-        constexpr Real omega_w_max = static_cast<Real>(7500.0) * static_cast<Real>(2.0) * PI / static_cast<Real>(60.0);
+        constexpr Real omega_w_max = static_cast<Real>(12000.0) * static_cast<Real>(2.0) * PI / static_cast<Real>(60.0);
         constexpr Real omega_w_min = -omega_w_max;
         constexpr Real tau_w_max = static_cast<Real>(13e-1);
         constexpr Real tau_w_min = -tau_w_max;

@@ -199,7 +199,7 @@ int main() {
         }
 
         states_true = dynamics.getStates();
-        states_hat = states_true; // For logging equivalence only
+        // states_hat = states_true; // For logging equivalence only
         tau_grav = dynamics.getTauGravity();      // NEW
         tau_dist = dynamics.getTauDisturbance();  // NEW
         logger.log(t, states_true, states_hat, reference, tau_all, measurements, 

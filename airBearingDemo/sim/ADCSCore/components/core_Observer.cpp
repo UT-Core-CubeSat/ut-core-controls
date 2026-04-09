@@ -4,6 +4,7 @@
 ObserverClass::ObserverClass()
     : q_hat(Param::Vector4::Zero()),
       beta_hat(Param::Observer::beta_gyro),
+      tau_bias(Param::Observer::tau_bias),
       P(Param::Observer::P_0),
       G(Param::Observer::G),
       Q(Param::Observer::Q),
@@ -40,16 +41,29 @@ void ObserverClass::propagate(const Vector3& omega_meas, Scalar dt) {
     F(0,0) = 0;              F(0,1) = omega_hat(2);  F(0,2) = -omega_hat(1); F(0,3) = -1; F(0,4) = 0;  F(0,5) = 0;
     F(1,0) = -omega_hat(2);  F(1,1) = 0;             F(1,2) = omega_hat(0);  F(1,3) = 0;  F(1,4) = -1; F(1,5) = 0;
     F(2,0) = omega_hat(1);   F(2,1) = -omega_hat(0); F(2,2) = 0;             F(2,3) = 0;  F(2,4) = 0;  F(2,5) = -1;
-    F(3,0) = 0; F(3,1) = 0; F(3,2) = 0; F(3,3) = 0; F(3,4) = 0; F(3,5) = 0;
-    F(4,0) = 0; F(4,1) = 0; F(4,2) = 0; F(4,3) = 0; F(4,4) = 0; F(4,5) = 0;
-    F(5,0) = 0; F(5,1) = 0; F(5,2) = 0; F(5,3) = 0; F(5,4) = 0; F(5,5) = 0;
-    
+    F(3,0) = 0; F(3,1) = 0; F(3,2) = 0; F(3,3) = -1/tau_bias; F(3,4) = 0; F(3,5) = 0;
+    F(4,0) = 0; F(4,1) = 0; F(4,2) = 0; F(4,3) = 0; F(4,4) = -1/tau_bias; F(4,5) = 0;
+    F(5,0) = 0; F(5,1) = 0; F(5,2) = 0; F(5,3) = 0; F(5,4) = 0; F(5,5) = -1/tau_bias;
+
     // Discrete state transition: Phi ≈ I + F*dt
     Param::Matrix6 I6 = Param::Matrix6::Identity();
     Param::Matrix6 Phi = I6 + F * dt;
     
-    // Discrete process noise: Qd = G * Q * G' * dt
-    Param::Matrix6 Qd = G * Q * G.transpose() * dt;
+    // Discrete process noise: Qd
+    Param::Matrix6 Qd = Param::Matrix6::Zero();
+    
+    // Attitude part (top-left 3x3): Simplified from G.block * Q.block * G.block.transpose() * dt
+    // Since G.block is -I and Q.block is sigma^2 I, this reduces to sigma^2 I * dt
+    Qd(0,0) = sigma_v(0) * sigma_v(0) * dt;
+    Qd(1,1) = sigma_v(1) * sigma_v(1) * dt;
+    Qd(2,2) = sigma_v(2) * sigma_v(2) * dt;
+    
+    // Bias part (bottom-right 3x3): Gauss-Markov as before
+    Scalar exp_term = std::exp(-2.0 * dt / tau_bias);
+    Scalar bias_qd = (sigma_u(0) * sigma_u(0)) * (1.0 - exp_term);
+    Qd(3,3) = bias_qd;
+    Qd(4,4) = bias_qd;
+    Qd(5,5) = bias_qd;
     
     // Discrete covariance propagation: P = Phi * P * Phi' + Qd
     P = Phi * P * Phi.transpose() + Qd;

@@ -94,7 +94,7 @@ namespace Param {
 
         // Reaction Wheels
         constexpr Real I_wheel = static_cast<Real>(1.13e-6);
-        constexpr Real RPM_max = static_cast<Real>(7500.0);
+        constexpr Real RPM_max = static_cast<Real>(12000.0);
         constexpr Real RPM_min = -RPM_max;
         constexpr Real omega_w_max = RPM_max * static_cast<Real>(2.0) * PI / static_cast<Real>(60.0);
         constexpr Real omega_w_min = -omega_w_max;
@@ -175,7 +175,8 @@ namespace Param {
             static_cast<Real>(0.1) * deg2rad, static_cast<Real>(0.1) * deg2rad, static_cast<Real>(0.1) * deg2rad};
         static const Vector3 sigma_bias_walk = Vector3{
             static_cast<Real>(0.002) * deg2rad, static_cast<Real>(0.002) * deg2rad, static_cast<Real>(0.002) * deg2rad};
-        
+        constexpr Real tau_bias = static_cast<Real>(1800.0); // [s] Bias correlation time (for drift)
+
         // Scalar versions for covariance matrices
         constexpr Real sigma_gyro_rad = static_cast<Real>(0.1) * deg2rad;
         constexpr Real sigma_bias_walk_rad = static_cast<Real>(0.002) * deg2rad;
