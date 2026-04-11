@@ -46,6 +46,7 @@ private:
     Quat last_q_star;
     Quat q_hat;
     Vector3 beta_hat;
+    Scalar tau_bias;
     Param::Matrix6 P;
     Param::Matrix6 G;
     Param::Matrix6 Q;

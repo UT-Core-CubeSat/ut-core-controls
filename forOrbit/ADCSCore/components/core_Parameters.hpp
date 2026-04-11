@@ -165,6 +165,7 @@ namespace Param {
             static_cast<Real>(0.1) * deg2rad, static_cast<Real>(0.1) * deg2rad, static_cast<Real>(0.1) * deg2rad};
         static const Vector3 sigma_bias_walk = Vector3{
             static_cast<Real>(0.002) * deg2rad, static_cast<Real>(0.002) * deg2rad, static_cast<Real>(0.002) * deg2rad};
+        constexpr Real tau_bias = static_cast<Real>(1800.0); // [s] Bias correlation time (for drift)
         
         // Scalar versions for covariance matrices
         constexpr Real sigma_gyro_rad = static_cast<Real>(0.1) * deg2rad;
