@@ -1,2 +1,0 @@
-nalgebra::constraint::ShapeConstraint: nalgebra::constraint::SameNumberOfColumns<nalgebra::Const<1>, nalgebra::Const<3>>
-nalgebra::Matrix<f64, nalgebra::Const<6>, nalgebra::Const<1>, nalgebra::ArrayStorage<f64, 6, 1>>

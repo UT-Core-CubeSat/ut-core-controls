@@ -1,2 +1,0 @@
-nalgebra::base::matrix::Matrix<f64, nalgebra::base::dimension::Const<3>, nalgebra::base::dimension::Const<3>, nalgebra::base::array_storage::ArrayStorage<f64, 3, 3>>
-nalgebra::Matrix<f64, nalgebra::Const<3>, nalgebra::Const<3>, nalgebra::ArrayStorage<f64, 3, 3>>

@@ -59,8 +59,8 @@ void ObserverClass::propagate(const Vector3& omega_meas, Scalar dt) {
     Qd(2,2) = sigma_v(2) * sigma_v(2) * dt;
     
     // Bias part (bottom-right 3x3): Gauss-Markov as before
-    Scalar exp_term = std::exp(-2.0 * dt / tau_bias);
-    Scalar bias_qd = (sigma_u(0) * sigma_u(0)) * (1.0 - exp_term);
+    Scalar exp_term = static_cast<Scalar>(std::exp(-2.0 * dt / tau_bias));
+    Scalar bias_qd = (sigma_u(0) * sigma_u(0)) * (static_cast<Scalar>(1.0) - exp_term);
     Qd(3,3) = bias_qd;
     Qd(4,4) = bias_qd;
     Qd(5,5) = bias_qd;
