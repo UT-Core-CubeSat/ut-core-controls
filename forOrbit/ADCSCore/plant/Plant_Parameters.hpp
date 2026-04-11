@@ -238,10 +238,41 @@ namespace PlantParam {
 
         // Reaction Wheels
         constexpr Real I_wheel = static_cast<Real>(1.13e-6);
-        constexpr Real omega_w_max = static_cast<Real>(13600.0) * static_cast<Real>(2.0) * PI / static_cast<Real>(60.0);
+        constexpr Real omega_w_max = static_cast<Real>(12000.0) * static_cast<Real>(2.0) * PI / static_cast<Real>(60.0);
         constexpr Real omega_w_min = -omega_w_max;
         constexpr Real tau_w_max = static_cast<Real>(13e-3);
         constexpr Real tau_w_min = -tau_w_max;
+
+        // Wheel Motor Electrical/Mechanical Specs (from datasheet)
+        namespace WheelMotor {
+            constexpr Real Kt = static_cast<Real>(8.3e-3);         // [N*m/A] Torque constant
+            constexpr Real Ke = static_cast<Real>(8.3e-3);         // [V/(rad/s)] Back-EMF constant
+            constexpr Real R = static_cast<Real>(3.95);            // [ohm] Phase-to-phase resistance
+            constexpr Real L = static_cast<Real>(0.12e-3);         // [H] Phase-to-phase inductance
+            constexpr Real tau_m = static_cast<Real>(0.0649);      // [s] Mechanical time constant
+            constexpr Real tau_e = static_cast<Real>(0.03e-3);     // [s] Electrical time constant
+            constexpr Real I0 = static_cast<Real>(0.1);            // [A] Typical no-load current
+            constexpr Real no_load_rpm = static_cast<Real>(13600.0); // [rpm] No-load speed
+            constexpr Real omega_no_load = no_load_rpm * static_cast<Real>(2.0) * PI / static_cast<Real>(60.0); // [rad/s]
+        }
+
+        // Wheel Internal Dynamics (unmodeled effects)
+        namespace WheelDynamics {
+            constexpr bool enable_motor_dynamics = true;           // First-order motor torque lag
+            constexpr bool enable_friction = true;                 // Viscous + Coulomb friction
+            constexpr bool enable_ripple = true;                   // Torque ripple / vibration
+
+            constexpr Real motor_tau = WheelMotor::tau_m;          // [s] Motor torque time constant
+
+            // Friction model: tau_fric = b*omega + tau_c*sign(omega)
+            constexpr Real b_viscous = WheelMotor::Kt * WheelMotor::I0 / WheelMotor::omega_no_load; // [N*m/(rad/s)]
+            constexpr Real tau_coulomb = static_cast<Real>(2.0e-5); // [N*m] Coulomb friction (tunable)
+            constexpr Real omega_eps = static_cast<Real>(0.1);     // [rad/s] Smoothing for sign(omega)
+
+            // Torque ripple model: tau_ripple = A*sin(h*theta)
+            constexpr Real ripple_amp = static_cast<Real>(2.0e-5); // [N*m] Ripple amplitude (tunable)
+            constexpr Real ripple_harmonic = static_cast<Real>(1.0); // [ ] Multiples of wheel spin rate
+        }
 
         // Wheel Geometry (truth)
         constexpr Real wheel_thickness = static_cast<Real>(0.0112);
@@ -263,6 +294,37 @@ namespace PlantParam {
         }();
 
         static const Vector4 I_rw = Vector4::Constant(I_wheel);
+    }
+
+    // ========================================================================
+    // DISTURBANCE MODELS (Environmental perturbations)
+    // ========================================================================
+    namespace Disturbances {
+        // Solar Radiation Pressure (SRP)
+        constexpr bool enable_SRP = false;                           // Toggle SRP on/off
+        constexpr Real SRP_scale = static_cast<Real>(1.0);         // Magnitude scaling factor [0, 2]
+        constexpr Real Cr = static_cast<Real>(1.5);                // Reflectivity coefficient (LEO SSO standard)
+        constexpr Real SRP_area = static_cast<Real>(0.03);         // Effective projected area [m^2] (typical for 3U CubeSat bus)
+        static const Vector3 CoP_offset = Vector3{                 // Center-of-pressure offset from CoM [m] (body frame)
+            static_cast<Real>(0.0),
+            static_cast<Real>(0.0),
+            static_cast<Real>(0.05)};                              // +Z offset typical for solar panels
+
+        // Gravity-gradient torque
+        constexpr bool enable_gravity_gradient = true;             // Toggle gravity-gradient on/off
+        constexpr Real GG_scale = static_cast<Real>(1.0);         // Magnitude scaling factor [0, 2]
+
+        // Atmospheric drag
+        constexpr bool enable_drag = false;                         // Toggle atmospheric drag on/off
+        constexpr Real drag_scale = static_cast<Real>(1.0);       // Magnitude scaling factor [0, 2]
+        constexpr Real Cd = static_cast<Real>(2.2);               // Drag coefficient (tumbling satellite)
+        constexpr Real A_drag = static_cast<Real>(0.01);          // Cross-sectional area [m^2] (3U CubeSat ~0.1x0.1)
+        constexpr Real rho0_drag = static_cast<Real>(1.225);      // Reference density at sea level [kg/m^3]
+        constexpr Real h0_drag = static_cast<Real>(0.0);          // Reference altitude [m]
+        constexpr Real H_scale = static_cast<Real>(8500.0);       // Scale height [m] (~8.5 km for LEO)
+
+        // Residual magnetic dipole (optional, future)
+        constexpr bool enable_residual_dipole = false;
     }
 }
 

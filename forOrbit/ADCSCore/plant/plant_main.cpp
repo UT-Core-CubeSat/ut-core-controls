@@ -230,7 +230,6 @@ int main() {
             // Call Core
             ADCS::AdcsOutput actuators = adcsCore.update(sensorData, cmd);
 
-            // Remove these later !!!
             states_hat = actuators.states_hat;
             reference = actuators.reference;
             states_m = actuators.states_m;

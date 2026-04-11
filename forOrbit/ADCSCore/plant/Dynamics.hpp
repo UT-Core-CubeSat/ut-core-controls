@@ -32,11 +32,27 @@ private:
     Param::Vector17 kinetics(const Param::Vector17& states, const InputVector& inputs);
 
     struct forceOutput {
-        Vector3 forces;
-        InputVector moments;
+        Vector3 forces;           // External forces (translational disturbances like drag)
+        InputVector moments;      // Actuator torques and external torques
     };
 
     forceOutput forces_and_moments(const InputVector& inputs);
+
+    // SRP helper functions
+    Vector3 compute_SRP_force(const Vector3& r_ECI, const Vector4& q, Param::TimeReal current_time);
+    Vector3 compute_SRP_torque(const Vector3& F_srp_body, const Vector3& s_b);
+
+    // Gravity-gradient helper function
+    Vector3 compute_gravity_gradient_torque(const Vector3& r_ECI, const Vector4& q);
+
+    // Atmospheric drag helper functions
+    Scalar compute_atmospheric_density(const Vector3& r_ECI);
+    Vector3 compute_drag_force(const Vector3& r_ECI, const Vector3& v_ECI);
+
+    // Wheel internal dynamics helpers
+    Vector4 compute_motor_current_dynamics(const Vector4& V_cmd, const Vector4& omega_wheel, const Vector4& i_motor);
+    Vector4 compute_wheel_friction(const Vector4& omega_wheel) const;
+    Vector4 compute_wheel_ripple(const Vector4& omega_wheel) const;
 
     // Private Members
     Scalar Ts;
@@ -50,6 +66,11 @@ private:
     Param::Vector17 states_dot;
     Param::Matrix34 S;
     Scalar I_wheel;
+    Param::TimeReal current_time;  // Track simulation time for ephemeris
+
+    // Wheel motor internal dynamics state
+    Vector4 i_motor;           // Motor phase current [A]
+    Vector4 ripple_phase;      // Ripple phase [rad]
 };
 
 #endif // DYNAMICS_HPP
