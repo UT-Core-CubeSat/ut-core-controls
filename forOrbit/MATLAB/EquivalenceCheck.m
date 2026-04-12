@@ -79,7 +79,6 @@ for k = 1:length(time_log)
     % --- Update Visuals ---
     % 1. Animation
     animation.update(states_k, ref_k, mode_str);
-    states_k(7:10) = states_k(7:10)*-1; % flip quaternion, it's still the same orientation though!
     % 2. Plotter
     % Signature: update(t, states, estimate, references, model, input, measurements, mode)
     plotter.update(t, states_k, est_k, ref_k, model_k, input_k, measurements_k, mode_str);
