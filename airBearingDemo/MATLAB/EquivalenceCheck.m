@@ -91,9 +91,15 @@ z_body = [0; 0; 1];
 pointing_error_deg = zeros(1, length(time_log));
 for k = 1:length(time_log)
     q = q_log(:, k);
-    % Rotate body Z to inertial
+    q = q / norm(q);   % normalize quaternion
+
     z_inertial = quatrotate(q, z_body')';
-    pointing_error_deg(k) = acosd(dot(z_inertial, [0;0;1]));
+    c = dot(z_inertial, [0;0;1]);
+
+    % clamp to valid acosd range
+    c = max(-1, min(1, c));
+
+    pointing_error_deg(k) = acosd(c);
 end
 plot(time_log, pointing_error_deg);
 xlabel('Time [s]'); ylabel('Angle [deg]');
@@ -104,9 +110,11 @@ fprintf('Playback Complete.\n');
 
 
 function v_rot = quatrotate(q, v)
-            qv = [0; v(:)];
-            v_rot = quatMultiply(quatMultiply(q, qv), quatconj(q));
-            v_rot = v_rot(2:4);
+    q = q(:);
+    q = q / norm(q);
+    qv = [0; v(:)];
+    v_rot = quatMultiply(quatMultiply(q, qv), quatconj(q));
+    v_rot = v_rot(2:4);
 end
 
 function q = quatMultiply(q1, q2)
