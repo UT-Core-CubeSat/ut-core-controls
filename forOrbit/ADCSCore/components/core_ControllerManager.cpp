@@ -21,9 +21,9 @@ ControllerManager::ControlOutput ControllerManager::update(const Param::Vector17
         // B-Dot Controller
         auto bdot_out = Bdot.update(measurements, states_hat, dt);
         
-        // FIX: output.tau is Vector7. bdot_out.tau_sat is Vector3 (MTQ only).
+
         // Structure is [Wheel(4); MTQ(3)]. Set Wheels to 0.
-        //output.tau << 0.0, 0.0, 0.0, 0.0, bdot_out.tau_sat;
+
         output.tau = Param::Vector7::Zero();
         output.tau(4) = bdot_out.tau_sat(0);
         output.tau(5) = bdot_out.tau_sat(1);
@@ -34,9 +34,6 @@ ControllerManager::ControlOutput ControllerManager::update(const Param::Vector17
         // NDI Controller
         auto ndi_out = NDI.update(states_hat, reference, measurements, dt);
         
-        // FIX: output.tau is Vector7. NDI returns separate Wheel(4) and MTQ(3).
-        // Concatenate them.
-        //output.tau << ndi_out.tau_wheel, ndi_out.tau_mtq;
         output.tau(0) = ndi_out.tau_wheel(0);
         output.tau(1) = ndi_out.tau_wheel(1);
         output.tau(2) = ndi_out.tau_wheel(2);

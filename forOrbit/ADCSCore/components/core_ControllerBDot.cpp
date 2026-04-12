@@ -30,7 +30,6 @@ ControllerBDot::BDotOutput ControllerBDot::update(const Measurements& measuremen
     // states_hat: [R(3), V(3), q(4), omega(3), omega_w(4)]
     // states_m format: [q(4), omega(3)] with q as [q0, q1, q2, q3]
     StateVector states_m;
-    //states_m << states_hat.segment<4>(6), states_hat.segment<3>(10);
     states_m(0) = states_hat(6); // q0
     states_m(1) = states_hat(7); // q1
     states_m(2) = states_hat(8); // q2

@@ -7,9 +7,9 @@
 
 namespace ADCS {
 
-// ============================================================================
+
 // COMMAND INTERFACE (What CDH/Ground sends to ADCS)
-// ============================================================================
+
 
 // Mission-level modes (what operators command)
 enum class MissionMode { 
@@ -47,9 +47,9 @@ struct Command {
                 body_axis{0,0,1}, target_eci{1,0,0} {}
 };
 
-// ============================================================================
+
 // SENSOR INTERFACE (What CAN provides from sensors)
-// ============================================================================
+
 struct SensorData {
     Param::TimeReal unix_time;          // From GPS or RTC
     Math::Vec<3> gyro;         // [rad/s] body rates
@@ -60,9 +60,9 @@ struct SensorData {
     Math::Vec<4> wheel_speeds; // [rad/s] reaction wheel angular velocities
 };
 
-// ============================================================================
+
 // OUTPUT INTERFACE (What ADCS sends back via CAN)
-// ============================================================================
+
 struct AdcsOutput {
     Math::Vec<4> wheel_torque;
     Math::Vec<3> mtq_dipole;
@@ -77,9 +77,9 @@ struct AdcsOutput {
     Param::Vector17 states_hat;  // Full estimated state
 };
 
-// ============================================================================
+
 // CORE CLASS (The Black Box)
-// ============================================================================
+
 class Core {
 public: 
     Core();
