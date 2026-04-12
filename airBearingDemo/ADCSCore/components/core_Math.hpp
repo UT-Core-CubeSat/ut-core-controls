@@ -6,10 +6,8 @@
 #include <cstring>
 #include <initializer_list>
 
-// ============================================================================
 // LIGHTWEIGHT MATH LIBRARY FOR EMBEDDED SYSTEMS
 // Replaces Eigen with fixed-size, stack-allocated types
-// ============================================================================
 
 namespace Math {
 
@@ -21,9 +19,7 @@ constexpr Real PI = static_cast<Real>(3.1415926535898);
 template<int N> struct Vec;
 template<int R, int C> struct Mat;
 
-// ============================================================================
 // FIXED-SIZE VECTOR
-// ============================================================================
 template<int N>
 struct Vec {
     Real data[N];
@@ -249,9 +245,7 @@ struct Vec {
 template<int N>
 Vec<N> operator*(Real s, const Vec<N>& v) { return v * s; }
 
-// ============================================================================
 // FIXED-SIZE MATRIX (Row-Major Storage)
-// ============================================================================
 template<int R, int C>
 struct Mat {
     Real data[R * C];
@@ -428,9 +422,7 @@ struct Mat {
 template<int R, int C>
 Mat<R, C> operator*(Real s, const Mat<R, C>& m) { return m * s; }
 
-// ============================================================================
 // SPECIAL MATRIX OPERATIONS
-// ============================================================================
 
 // 3x3 Matrix Inverse (Explicit formula using cofactors)
 inline Mat<3, 3> inverse3x3(const Mat<3, 3>& m) {
@@ -591,10 +583,8 @@ Mat<R, C> outerProduct(const Vec<R>& v1, const Vec<C>& v2) {
     return result;
 }
 
-// ============================================================================
 // EIGENSOLVER FOR 4x4 SYMMETRIC MATRICES (Jacobi Eigenvalue Algorithm)
 // Used by QUEST algorithm - guaranteed convergence for symmetric matrices
-// ============================================================================
 struct EigenResult4 {
     Real eigenvalue;
     Vec<4> eigenvector;
@@ -724,9 +714,7 @@ inline EigenResult4 maxEigenvector4x4Symmetric(const Mat<4, 4>& A) {
 }
 
 
-// ============================================================================
 // SKEW-SYMMETRIC MATRIX (for cross product as matrix)
-// ============================================================================
 inline Mat<3, 3> skew(const Vec<3>& v) {
     Mat<3, 3> S;
     S(0, 0) = static_cast<Real>(0.0);    S(0, 1) = -v(2);  S(0, 2) = v(1);
@@ -735,9 +723,7 @@ inline Mat<3, 3> skew(const Vec<3>& v) {
     return S;
 }
 
-// ============================================================================
 // CONVENIENCE TYPE ALIASES
-// ============================================================================
 using Vec3 = Vec<3>;
 using Vec4 = Vec<4>;
 using Vec6 = Vec<6>;
@@ -759,9 +745,7 @@ using Mat63 = Mat<6, 3>;
 
 } // namespace Math
 
-// ============================================================================
 // STREAM OUTPUT (for debugging)
-// ============================================================================
 #include <iostream>
 
 template<int N>

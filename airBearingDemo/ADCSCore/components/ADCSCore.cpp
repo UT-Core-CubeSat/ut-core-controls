@@ -50,7 +50,7 @@ AdcsOutput Core::update(const SensorData& sensors)
     out.rate_est = states_hat.segment<3>(10);
     out.estimator_valid = !states_hat.hasNaN();
 
-    // Adding equivalence variables, won't be here later 
+    // Adding equivalence variables, this is just for plotting and wouldn't be needed in orbit
     out.reference = reference; 
     out.states_m = ctrl_out.states_m;
     out.states_hat = states_hat;

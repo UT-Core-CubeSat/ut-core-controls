@@ -12,7 +12,7 @@ ControllerBDot::ControllerBDot()
     Bdot_num_filt(Vector3::Zero()),
     beta_fuse(Param::Controller::beta_fuse)
 {
-    // Constructor body (if needed)
+
 }
 
 // Methods
@@ -27,7 +27,7 @@ ControllerBDot::Vector3 ControllerBDot::update(const Measurements& measurements,
     Vector3 m_sat;
     
     // Build states_m from current estimated states (q and omega)
-    // states_hat: [R(3), V(3), q(4), omega(3), omega_w(4)]
+    // states_hat: [R(3), V(3), q(4), omega(3), omega_wheel(4)]
     // states_m format: [q(4), omega(3)] with q as [q0, q1, q2, q3]
     StateVector states_m;
     //states_m << states_hat.segment<4>(6), states_hat.segment<3>(10);

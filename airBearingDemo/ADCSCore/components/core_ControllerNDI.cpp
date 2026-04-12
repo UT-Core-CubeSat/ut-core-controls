@@ -29,10 +29,8 @@ ControllerNDI::ControllerNDI()
                     Param::Controller::zeta_model,
                     Param::Controller::t_s_plant,
                     Param::Controller::zeta_plant);
-    //x_m << Param::Orbit::InitialState.q0.segment<3>(1), 
-    //       Param::Orbit::InitialState.q0(0),
-    //       Param::Orbit::InitialState.omega;
-    x_m(0) = 0; x_m(1) = 0; x_m(2) = 0; x_m(3) = 1; // identity quat
+
+    x_m(0) = 0; x_m(1) = 0; x_m(2) = 0; x_m(3) = 1; // identity quaternion
     x_m(4) = 0; x_m(5) = 0; x_m(6) = 0; // zero body rates
 
 }
@@ -77,6 +75,7 @@ ControllerNDI::NDIOutput ControllerNDI::update(const Param::Vector11& states,
     RegInput.setSegment(0, q_m);
     RegInput.setSegment(4, omega_m);
     RegInput.setSegment(7, omega_m_dot);
+
     // Regularize Reference 
     RegOutput reg_out = regularize_reference(q, RegInput);
     q_m = reg_out.q_ref_eff;
@@ -88,6 +87,7 @@ ControllerNDI::NDIOutput ControllerNDI::update(const Param::Vector11& states,
     toolIn.setSegment(4, omega);
     toolIn2.setSegment(0, q_m);
     toolIn2.setSegment(4, omega_m);
+
     // Inner Loop (Plant -> Model)
     ToolBoxOutput toolbox = compute_BP_Toolbox(toolIn, toolIn2, false);
     Param::Matrix43 E = toolbox.E_m;
@@ -101,7 +101,7 @@ ControllerNDI::NDIOutput ControllerNDI::update(const Param::Vector11& states,
     Vector3 crossComp = C_BB*omega_m;
     Vector3 omega_dot = C_BB*omega_m_dot + crossComp.cross(omega) + e_omega_dot;
 
-    // Compute torque from Euler's equation
+    // Compute torque from Euler equations: τ = I*omega_dot + omega × (I*omega)
     Vector3 tau_NDI = I*omega_dot + omega.cross(I*omega);
 
     // Gravity feedforward Compensation
@@ -210,7 +210,7 @@ ControllerNDI::StateVector ControllerNDI::reference_model_dif_eq(const StateVect
 
 ControllerNDI::StateVector ControllerNDI::update_reference_model(const Reference& reference, Param::Real dt) 
 {
-    // Integrate ODE using Runge-Kutta RK4 method 
+    // Integrate ODE using Runge-Kutta RK4
     StateVector x_m_dot_1 = reference_model_dif_eq(x_m, reference);
     StateVector x_m_dot_2 = reference_model_dif_eq(x_m + (dt/2)*x_m_dot_1, reference);
     StateVector x_m_dot_3 = reference_model_dif_eq(x_m + (dt/2)*x_m_dot_2, reference);

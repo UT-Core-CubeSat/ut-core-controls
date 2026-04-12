@@ -5,9 +5,7 @@
 using namespace Math;
 namespace Param {
     
-    // ========================================================================
     // TYPE DEFINITIONS
-    // ========================================================================
     using Real = Math::Real;
     using TimeReal = Math::TimeReal;
     using Scalar = Real;
@@ -30,10 +28,9 @@ namespace Param {
     using Matrix4 = Math::Mat4;
     using Matrix6 = Math::Mat6;
 
-    // ========================================================================
     // INTERNAL CONTROL MODES
-    // These are what the controller understands (simpler than MissionMode)
-    // ========================================================================
+    // These are what the controller understands as the current mode of operation. 
+    // The Core class will map these to the PointingMode based on sensor data and state.
     enum class PointingMode { 
         OFF,      // No control
         DETUMBLE, // BDot controller active
@@ -45,13 +42,13 @@ namespace Param {
         constexpr Real h_cg = static_cast<Real>(0.005); // [m] CG offset from air bearing pivot
     }
 
-    // ========================================================================
+
     // SPACECRAFT CONFIGURATION
     // Body frame axis definitions for each function
-    // ========================================================================
+
     namespace Config {
         // Which body axis corresponds to each function
-        // Edit these to match your spacecraft design
+        // !! Edit these to match the actual physical configuration of the spacecraft !!
         static const Vector3 face_solar = Vector3{0, 1, 0};     // +Y: solar panels
         static const Vector3 face_antenna = Vector3{1, 0, 0};   // +X: S-band antenna
         static const Vector3 face_boresight = Vector3{0, 0, -1}; // -Z: camera/payload
@@ -64,9 +61,9 @@ namespace Param {
     constexpr Real deg2rad = PI / static_cast<Real>(180.0);
     constexpr Real rad2deg = static_cast<Real>(180.0) / PI;
 
-    // ========================================================================
+
     // SPACECRAFT MODEL (Controller's estimate of truth)
-    // ========================================================================
+
     namespace Spacecraft {
         constexpr Real mass = static_cast<Real>(5.0);  // [kg]
         static const Vector3 I_principle = Vector3{static_cast<Real>(0.0523), static_cast<Real>(0.0520), static_cast<Real>(0.0083)};
@@ -83,9 +80,9 @@ namespace Param {
         static const Vector3 dim = Vector3{static_cast<Real>(0.1), static_cast<Real>(0.1), static_cast<Real>(0.3)};
     }
 
-    // ========================================================================
+
     // ACTUATORS
-    // ========================================================================
+
     namespace Actuators {
         // Magnetorquers (disabled for air bearing - no varying B-field)
         constexpr Real m_max = static_cast<Real>(0.04);  // [A·m²]
@@ -126,9 +123,8 @@ namespace Param {
         static const Vector4 I_rw = Vector4::Constant(I_wheel);
     }
 
-    // ========================================================================
     // CONTROLLER GAINS (Tuned for Air Bearing Demo)
-    // ========================================================================
+
     namespace Controller {
         constexpr Real t_s_plant = static_cast<Real>(4);
         constexpr Real zeta_plant = static_cast<Real>(0.9);
@@ -161,9 +157,9 @@ namespace Param {
         }
     }
 
-    // ========================================================================
+
     // OBSERVER TUNING
-    // ========================================================================
+
     namespace Observer {
         // Earth rotation (for frame transformations)
         static const Vector3 omega_earth = Vector3{static_cast<Real>(0.0), static_cast<Real>(0.0), static_cast<Real>(7.2921159e-5)};

@@ -29,8 +29,8 @@ private:
     Quat q_hat;
     Vector3 beta_hat;
     Scalar tau_bias;
-    Vector3 g_ref;  // NEW: Reference gravity direction in inertial frame
-    Vector3 B_ref;  // NEW: Reference magnetic field direction in inertial frame
+    Vector3 g_ref;
+    Vector3 B_ref;
     Param::Matrix6 P;
     Param::Matrix6 G;
     Param::Matrix6 Q;

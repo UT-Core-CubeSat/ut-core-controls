@@ -6,9 +6,7 @@
 
 namespace ADCS {
 
-// ============================================================================
 // SENSOR INTERFACE (What CAN provides from sensors)
-// ============================================================================
 struct SensorData {
     Param::TimeReal unix_time;          // From GPS or RTC
     Math::Vec<3> accelerometer;   // [m/s^2] gravity vector in body frame
@@ -17,9 +15,7 @@ struct SensorData {
     Math::Vec<4> wheel_speeds; // [rad/s] reaction wheel angular velocities
 };
 
-// ============================================================================
 // OUTPUT INTERFACE (What ADCS sends back via CAN)
-// ============================================================================
 struct AdcsOutput {
     Math::Vec<4> wheel_torque;
     Math::Vec<3> mtq_dipole;
@@ -27,15 +23,13 @@ struct AdcsOutput {
     Math::Vec<3> rate_est;
     bool estimator_valid;
     
-    // Add these for logging equivalence. These won't be here later
+    // These are for logging equivalence. Won't be here in orbit, but they make it easier to plot and debug in simulation.
     Param::Vector10 reference;   // Reference trajectory
     Param::Vector7 states_m;     // Model states from controller
     Param::Vector11 states_hat;  // Full estimated state
 };
 
-// ============================================================================
-// CORE CLASS (The Black Box)
-// ============================================================================
+// UT-CORE-ADCS CLASS (The "Black Box")
 class Core {
 public: 
     Core();

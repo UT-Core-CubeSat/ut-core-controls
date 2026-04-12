@@ -222,8 +222,6 @@ ObserverClass::StateVector ObserverClass::update(const Param::Vector13& measurem
     return states_hat;
 }
 
-// ... (keep skew and quatMultiply methods unchanged)
-
 
 Param::Matrix3 ObserverClass::skew(const Vector3& v) {
     Param::Matrix3 S;
