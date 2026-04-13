@@ -1,3 +1,6 @@
+# PDF files
+*.pdf
+
 # MATLAB autosave files
 *.asv
 
