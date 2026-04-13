@@ -408,6 +408,14 @@ struct Mat {
         }
     }
 
+    // Normalize a specific column in-place
+    void normalizeColumn(int c) {
+        Real n = 0;
+        for (int i = 0; i < R; ++i) n += (*this)(i,c) * (*this)(i,c);
+        n = std::sqrt(n);
+        if (n > Real(1e-15)) for (int i = 0; i < R; ++i) (*this)(i,c) /= n;
+    }
+
     // Add vector to each column (colwise += )
     void colwiseAdd(const Vec<R>& v) {
         for (int c = 0; c < C; ++c) {

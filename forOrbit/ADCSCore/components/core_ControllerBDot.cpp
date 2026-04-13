@@ -49,15 +49,11 @@ ControllerBDot::BDotOutput ControllerBDot::update(const Measurements& measuremen
     m_tilde = -K_Bdot*B_dot;
     // Saturate magnetic moment
     if (B_now.norm() > static_cast<Scalar>(1e-9)) {
-        Bh = B_now / B_now.norm();
+        Real inv_norm = static_cast<Scalar>(1.0) / B_now.norm();
+        Bh = B_now * inv_norm;
 
-        // 1. Explicitly calculate the outer product into a Matrix3
-        Param::Matrix3 outerProduct = Math::outerProduct(Bh, Bh);
-
-        // 2. Perform the subtraction from Identity
-        P_perp = Param::Matrix3::Identity() - outerProduct;
-
-        m_tilde = P_perp * m_tilde;
+        // Direct rank-1 projection: m_tilde -= Bh * (Bh.dot(m_tilde))
+        m_tilde -= Bh * Bh.dot(m_tilde);
     }
     
     m_sat = saturateSymmetric(m_tilde, m_max);

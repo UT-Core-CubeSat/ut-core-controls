@@ -210,17 +210,15 @@ ControllerNDI::StateVector ControllerNDI::reference_model_dif_eq(const StateVect
 
 ControllerNDI::StateVector ControllerNDI::update_reference_model(const Reference& reference, Param::Real dt) 
 {
-    // Integrate ODE using Runge-Kutta RK4
-    StateVector x_m_dot_1 = reference_model_dif_eq(x_m, reference);
-    StateVector x_m_dot_2 = reference_model_dif_eq(x_m + (dt/2)*x_m_dot_1, reference);
-    StateVector x_m_dot_3 = reference_model_dif_eq(x_m + (dt/2)*x_m_dot_2, reference);
-    StateVector x_m_dot_4 = reference_model_dif_eq(x_m + dt*x_m_dot_3, reference);
+    // Integrate ODE using Heun's method (RK2) for better performance
+    StateVector k1 = reference_model_dif_eq(x_m, reference);
+    StateVector k2 = reference_model_dif_eq(x_m + dt * k1, reference);
     if (is_saturated) {
-        x_m.setSegment(0, x_m.segment<4>(0) + (dt/6)*(x_m_dot_1.segment<4>(0) + 2*x_m_dot_2.segment<4>(0) + 2*x_m_dot_3.segment<4>(0) + x_m_dot_4.segment<4>(0)));
+        x_m.setSegment(0, x_m.segment<4>(0) + (dt/2)*(k1.segment<4>(0) + k2.segment<4>(0)));
         x_m.setSegment(0, x_m.segment<4>(0).normalized());
         return x_m;
     }
-    x_m += (dt/6)*(x_m_dot_1 + 2*x_m_dot_2 + 2*x_m_dot_3 + x_m_dot_4);
+    x_m += (dt / 2) * (k1 + k2);
     x_m.setSegment(0, x_m.segment<4>(0).normalized()); // Normalize Quaternion
     return x_m;
 }
@@ -265,10 +263,10 @@ ControllerNDI::ToolBoxOutput ControllerNDI::compute_BP_Toolbox(const StateVector
 
     // Unpack states 
     Quat q = states.segment<4>(0);
-    q = q / q.norm();
+    // q = q / q.norm();  // REDUNDANT - callers already normalize
     Vector3 omega = states.segment<3>(4);
     Quat q_desired = states_desired.segment<4>(0);
-    q_desired = q_desired / q_desired.norm();
+    // q_desired = q_desired / q_desired.norm();  // REDUNDANT - callers already normalize
     Vector3 omega_desired = states_desired.segment<3>(4);
 
     Scalar lambda = q.dot(q_desired);

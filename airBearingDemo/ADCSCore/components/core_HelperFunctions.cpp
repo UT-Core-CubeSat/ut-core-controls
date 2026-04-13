@@ -236,14 +236,14 @@ Param::Vector4 HelperFunctions::quatconj(const Quat& q) {
 }
 
 HelperFunctions::Vector3 HelperFunctions::quatRotate(const Quat& q, const Vector3& v) {
-    Vector4 qv;
-    qv(0) = static_cast<Scalar>(0.0); qv(1) = v(0); qv(2) = v(1); qv(3) = v(2);
-
-    Vector4 temp = quatMultiply(q, qv);
-    Vector4 v_rot_q = quatMultiply(temp, quatconj(q));
-
-    Vector3 result;
-    result(0) = v_rot_q(1); result(1) = v_rot_q(2); result(2) = v_rot_q(3);
+    // Direct rotation formula: v' = v + 2*q_w*(q_v × v) + 2*(q_v × (q_v × v))
+    Scalar qw = q(0);
+    Vector3 qv = q.segment<3>(1);
+    
+    Vector3 qv_cross_v = qv.cross(v);
+    Vector3 qv_cross_qv_cross_v = qv.cross(qv_cross_v);
+    
+    Vector3 result = v + static_cast<Scalar>(2.0) * qw * qv_cross_v + static_cast<Scalar>(2.0) * qv_cross_qv_cross_v;
     return result;
 }
 
@@ -312,6 +312,14 @@ HelperFunctions::Matrix3 HelperFunctions::dcmecef2ned(Scalar lat, Scalar lon) {
     C(2,0) = -cL*c_lam; C(2,1) = -cL*s_lam; C(2,2) = -sL;
     return C;
 }
+
+// Precomputed factorial table for WMM (up to 24!) - using double for precision
+static const double fact_table_double[25] = {
+    1.0, 1.0, 2.0, 6.0, 24.0, 120.0, 720.0, 5040.0, 40320.0, 362880.0, 3628800.0, 39916800.0, 479001600.0,
+    6227020800.0, 87178291200.0, 1307674368000.0, 20922789888000.0, 355687428096000.0,
+    6402373705728000.0, 121645100408832000.0, 2432902008176640000.0, 51090942171709440000.0,
+    1124000727777607680000.0, 25852016738884976640000.0, 620448401733239439360000.0
+};
 
 HelperFunctions::Vector3 HelperFunctions::wrldmagm(Scalar lat, Scalar lon, Scalar alt, Scalar decYear) {
     // 1. Setup Constants
@@ -382,8 +390,8 @@ HelperFunctions::Vector3 HelperFunctions::wrldmagm(Scalar lat, Scalar lon, Scala
             if (m == 0) {
                 S_nm = std::sqrt(static_cast<Scalar>(2.0)*n + static_cast<Scalar>(1.0));
             } else {
-                Scalar fact_n_m = static_cast<Scalar>(std::tgamma(n - m + 1)); // (n-m)!
-                Scalar fact_n_p_m = static_cast<Scalar>(std::tgamma(n + m + 1)); // (n+m)!
+                Scalar fact_n_m = static_cast<Scalar>(fact_table_double[n - m]); // (n-m)!
+                Scalar fact_n_p_m = static_cast<Scalar>(fact_table_double[n + m]); // (n+m)!
                 S_nm = std::sqrt(static_cast<Scalar>(2.0) * (static_cast<Scalar>(2.0)*n + static_cast<Scalar>(1.0)) * fact_n_m / fact_n_p_m);
             }
             if(n==0 && m==0) S_nm = static_cast<Scalar>(1.0);
@@ -394,25 +402,30 @@ HelperFunctions::Vector3 HelperFunctions::wrldmagm(Scalar lat, Scalar lon, Scala
     // 6. Accumulate Field
     Scalar Br = static_cast<Scalar>(0.0), Bt = static_cast<Scalar>(0.0), Bp = static_cast<Scalar>(0.0);
     Scalar a_over_r = a / r;
+    Scalar c_theta = std::cos(theta);
+    Scalar s_theta = std::sin(theta);
+    
+    Scalar ar_pwr = a_over_r * a_over_r * a_over_r;  // (a/r)^3 for n=1
     
     for (int n = 1; n <= Nmax; ++n) {
-        Scalar ar_pwr = static_cast<Scalar>(std::pow(a_over_r, n + 2)); // (a/r)^(n+2)
+        // ar_pwr is now (a/r)^(n+2)
         
         for (int m = 0; m <= n; ++m) {
             Scalar V = g_adj[n][m]*cosmlon[m] + h_adj[n][m]*sinmlon[m];
             Scalar W = -g_adj[n][m]*sinmlon[m] + h_adj[n][m]*cosmlon[m];
             
-            Scalar dP = diff_legendre(P, n, m, theta);
+            Scalar dP = diff_legendre(P, n, m, c_theta, s_theta);
             
             Br -= (n + static_cast<Scalar>(1.0)) * ar_pwr * V * P[n][m];
             Bt -= ar_pwr * V * dP;
             
-            if (std::abs(std::sin(theta)) > static_cast<Scalar>(1e-10)) {
-                Bp -= ar_pwr * (m * P[n][m] / std::sin(theta)) * W;
+            if (std::abs(s_theta) > static_cast<Scalar>(1e-10)) {
+                Bp -= ar_pwr * (m * P[n][m] / s_theta) * W;
             } else {
                 Bp = static_cast<Scalar>(0.0);
             }
         }
+        ar_pwr *= a_over_r;  // Update for next n: (a/r)^(n+3)
     }
     
     // 7. Spherical -> NED
@@ -423,12 +436,12 @@ HelperFunctions::Vector3 HelperFunctions::wrldmagm(Scalar lat, Scalar lon, Scala
 }
 
 HelperFunctions::Scalar HelperFunctions::diff_legendre(Scalar P[][WMMCoeffs::P_SIZE], 
-                                                       int n, int m, Scalar theta) 
+                                                       int n, int m, Scalar c_theta, Scalar s_theta) 
 {
     if (n == 0) return static_cast<Scalar>(0.0);
     
-    Scalar top = n * std::cos(theta) * P[n][m] - (n + m) * P[n-1][m];
-    return top / std::sin(theta);
+    Scalar top = n * c_theta * P[n][m] - (n + m) * P[n-1][m];
+    return top / s_theta;
 }
 
 HelperFunctions::Quat HelperFunctions::quatFromTwoVectorPairs(

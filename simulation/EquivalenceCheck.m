@@ -1,7 +1,7 @@
 %% Equivalence Check / Playback Tool
 clear; clc; close all;
 
-filename = 'simulation_data.csv';
+filename = 'build/simulation_data.csv';
 if ~isfile(filename)
     error('Could not find %s. Make sure you ran the C++ simulation and the file is in the current directory.', filename);
 end

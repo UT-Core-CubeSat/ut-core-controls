@@ -6,6 +6,27 @@ Use the `USE_ORBIT` CMake option to select between the two code bases:
 - `OFF` (default): builds the air bearing demo from `../airBearingDemo/ADCSCore`
 - `ON`: builds the orbit simulation from `../forOrbit/ADCSCore`
 
+
+## All in one copy and paste: (Start at the ut-core-controls parent folder in powershell)
+
+## For Air Bearing Demo (Default config)
+cd /d C:\Users\arick\Desktop\ut-core-controls
+rmdir /s /q simulation\build 2>nul
+mkdir simulation\build
+cd simulation\build
+cmake ..
+cmake --build . --config Debug
+.\Debug\PlantSim.exe
+
+## For Orbit Simulation
+cd /d C:\Users\arick\Desktop\ut-core-controls
+rmdir /s /q simulation\build 2>nul
+mkdir simulation\build
+cd simulation\build
+cmake .. -DUSE_ORBIT=ON
+cmake --build . --config Debug
+.\Debug\PlantSim.exe
+
 ## Build steps
 
 1. Create and enter a build directory:

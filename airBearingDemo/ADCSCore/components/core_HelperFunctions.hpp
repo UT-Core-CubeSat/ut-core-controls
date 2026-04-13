@@ -74,7 +74,8 @@ private:
     Scalar diff_legendre(Scalar P[][WMMCoeffs::P_SIZE],
                          int n, 
                          int m, 
-                         Scalar theta);
+                         Scalar c_theta,
+                         Scalar s_theta);
 };
 
 #endif // CORE_HELPERFUNCTIONS_HPP

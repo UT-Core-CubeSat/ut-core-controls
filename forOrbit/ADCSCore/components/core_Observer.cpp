@@ -233,7 +233,7 @@ ObserverClass::Quat ObserverClass::quest_algorithm(const Param::TimeReal& JD,
         q_meas = -q_meas;
     }
 
-    q_meas = q_meas / q_meas.norm();
+    // q_meas = q_meas / q_meas.norm();  // REDUNDANT - maxEigenvector4x4Symmetric returns normalized vector
     Quat q_quest = q_meas;
     return q_quest;
 }
@@ -287,13 +287,17 @@ ObserverClass::StateVector ObserverClass::update(const Param::Vector29& measurem
     Param::Real eclipse_threshold = static_cast<Scalar>(0.05) * I_max * static_cast<Scalar>(6.0);
     bool in_eclipse = (sun_current_sum < eclipse_threshold);
 
+    // Compute JD and DCM once for reuse
+    Param::TimeReal jd = helpers.julianDate(current_time);
+    Param::Matrix3 C_eci2ecef = helpers.dcmeci2ecef(jd);
+
     // --- Attitude update logic ---
     if (use_star_tracker && new_star_update) {
         star_tracker_update(q_star);
         last_q_star = q_star;
         last_star_update_time = current_time;
     } else if (!in_eclipse && (current_time - last_quest_update_time >= T_quest)) {
-        Param::TimeReal jd = helpers.julianDate(current_time);
+        // Param::TimeReal jd = helpers.julianDate(current_time);  // REDUNDANT - now computed above
         
         Param::Vector3 b_mag = measurements.segment<3>(16);
         
@@ -302,10 +306,10 @@ ObserverClass::StateVector ObserverClass::update(const Param::Vector29& measurem
         Param::Real b_mag_norm = b_mag.norm();
         
         if (b_sun_norm > static_cast<Scalar>(1e-6) && b_mag_norm > static_cast<Scalar>(1e-6)) {
-            b_sun = b_sun / b_sun_norm;  // Safe normalization
+            // b_sun = b_sun / b_sun_norm;  // REDUNDANT - b_sun already normalized above
             b_mag = b_mag / b_mag_norm;  // Safe normalization
             
-            Param::Matrix3 C_eci2ecef = helpers.dcmeci2ecef(jd);
+            // Param::Matrix3 C_eci2ecef = helpers.dcmeci2ecef(jd);  // REDUNDANT - now computed above
             Param::Vector3 r_ecef = gps_ecef.head<3>();
             Param::Vector3 r_eci = C_eci2ecef.transpose() * r_ecef;
         
@@ -326,25 +330,25 @@ ObserverClass::StateVector ObserverClass::update(const Param::Vector29& measurem
     // 3. Transform position/velocity to ECI for output
     // ================================================================
     // Re-calculate JD only if necessary (optimization: reuse 'jd' from above if scope allows)
-    Param::TimeReal jd_out = helpers.julianDate(current_time);
-    Param::Matrix3 C_eci2ecef_out = helpers.dcmeci2ecef(jd_out);
+    // Param::TimeReal jd_out = helpers.julianDate(current_time);  // REDUNDANT - now use jd
+    // Param::Matrix3 C_eci2ecef_out = helpers.dcmeci2ecef(jd_out);  // REDUNDANT - now use C_eci2ecef
     
     Param::Vector3 r_ecef_final = gps_ecef.head<3>();
     Param::Vector3 v_ecef_final = gps_ecef.tail<3>();
 
     // Position: Simple Rotation
-    Param::Vector3 R_hat = C_eci2ecef_out.transpose() * r_ecef_final;
+    Param::Vector3 R_hat = C_eci2ecef.transpose() * r_ecef_final;
 
     // Velocity: Rotation + Coriolis Effect (Transport Theorem)
     // V_i = C^T * V_b + omega x R_i
-    Param::Vector3 V_hat = C_eci2ecef_out.transpose() * v_ecef_final + 
+    Param::Vector3 V_hat = C_eci2ecef.transpose() * v_ecef_final + 
                            Param::Observer::omega_earth.cross(R_hat);
 
     // Calculate Bias-Corrected Rate
     Param::Vector3 omega_b_hat = omega_gyro - beta_hat;
     
-    // Normalize Quaternion Estimate
-    q_hat.normalize();
+    // Normalize Quaternion Estimate  // REDUNDANT - already normalized after propagate/update
+    // q_hat.normalize();
 
     // Pack Output State Vector (17x1)
     StateVector states_hat;

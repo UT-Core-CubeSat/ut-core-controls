@@ -208,10 +208,10 @@ ReferenceGenerator::RefGenOutput ReferenceGenerator::computeAttitude(
     // Use the two-vector pointing algorithm
     // Primary axis is satisfied exactly, secondary is best-effort
     
-    Vector3 b1 = primary.body_axis.normalized();
-    Vector3 t1 = primary.target_eci.normalized();
-    Vector3 b2 = secondary.body_axis.normalized();
-    Vector3 t2 = secondary.target_eci.normalized();
+    Vector3 b1 = primary.body_axis;  // Already unit
+    Vector3 t1 = primary.target_eci;  // Already unit
+    Vector3 b2 = secondary.body_axis;  // Already unit
+    Vector3 t2 = secondary.target_eci;  // Already unit
 
     RefGenOutput output;
     output.q_ref = helpers_.quatFromTwoVectorPairs(b1, t1, b2, t2);
@@ -227,7 +227,7 @@ ReferenceGenerator::RefGenOutput ReferenceGenerator::computeAttitude(
 
 ReferenceGenerator::Vector3 ReferenceGenerator::getSunVector(TimeReal unix_time) {
     TimeReal jd = helpers_.julianDate(unix_time);
-    return helpers_.earth2sun(jd).normalized();
+    return helpers_.earth2sun(jd);  // Already normalized
 }
 
 ReferenceGenerator::Vector3 ReferenceGenerator::getNadirVector(const StateVector& states) {

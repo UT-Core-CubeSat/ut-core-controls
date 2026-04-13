@@ -109,7 +109,10 @@ namespace Param {
             m(0,1) = -c; m(1,1) = 0;  m(2,1) = s;
             m(0,2) = 0;  m(1,2) = c;  m(2,2) = s;
             m(0,3) = 0;  m(1,3) = -c; m(2,3) = s;
-            for (int i = 0; i < 4; ++i) m.col(i).normalize();
+            for (int i = 0; i < 4; ++i) {
+                Real n = std::sqrt(m(0,i)*m(0,i) + m(1,i)*m(1,i) + m(2,i)*m(2,i));
+                if (n > 1e-15f) { m(0,i) /= n; m(1,i) /= n; m(2,i) /= n; }
+            }
             return m;
         }();
         static const Matrix43 S_pseudo = Math::pseudoInverse3x4(S);
