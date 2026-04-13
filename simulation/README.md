@@ -10,12 +10,15 @@ Use the `USE_ORBIT` CMake option to select between the two code bases:
 
 1. Create and enter a build directory:
 
+(From the ut-core-controls parent folder)
 ```bash
-mkdir -p build
+mkdir -p simulation/build
 cd build
 ```
 
 2. Configure the project:
+
+(Navigate to the simulation/build folder: cd simulation/build)
 
 - Air bearing demo (default):
 
@@ -37,17 +40,23 @@ cmake --build .
 
 ## Run the simulation
 
-After building, run the shared `PlantSim` executable from `simulation/build`:
+After building, run the shared `PlantSim` executable:
 
+**On Windows (Visual Studio generator):**
+```powershell
+# From simulation/build/
+.\Debug\PlantSim.exe
+```
+
+**On Linux/macOS:**
 ```bash
+# From simulation/build/
 ./PlantSim
 ```
 
-On Windows, use:
-
-```powershell
-PlantSim.exe
-```
+**Note:** The executable location depends on your CMake generator and build type:
+- Visual Studio (Windows): `simulation/build/Debug/PlantSim.exe` (or `Release/` if built in Release mode)
+- Unix Makefiles: `simulation/build/PlantSim`
 
 ## Notes
 
