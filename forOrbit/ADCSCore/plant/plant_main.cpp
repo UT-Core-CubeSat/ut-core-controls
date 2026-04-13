@@ -166,7 +166,7 @@ int main() {
     Real t_next_plot = static_cast<Real>(0.0);
     TimeReal epoch = SimTime::epoch_timestamp;
 
-    SimLogger logger({"simulation_data.csv", "../../MATLAB/simulation_data.csv"});
+    SimLogger logger({"simulation_data.csv", "../../../simulation/simulation_data.csv"});
 
     // State tracking
     Param::Vector17 states_true = dynamics.getStates();
