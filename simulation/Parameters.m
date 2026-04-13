@@ -1,5 +1,3 @@
-clear; clc; close all;
-
 % Time
 Param.t_start = 0;
 Param.t_end   = 120;

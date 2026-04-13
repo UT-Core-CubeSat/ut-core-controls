@@ -11,7 +11,6 @@ opts.VariableNamingRule = 'preserve';
 data_table = readtable(filename, opts);
 data = table2array(data_table);
 [numRows, numCols] = size(data);
-
 fprintf('Loaded %s with %d rows and %d columns.\n', filename, numRows, numCols);
 
 switch numCols
