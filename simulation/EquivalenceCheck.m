@@ -74,8 +74,8 @@ for k = 1:length(time_log)
     model_k  = model_log(:, k);
 
     if strcmp(data_format, 'airbearing')
-        tau_grav_k = tau_grav_log(:, k); %#ok<NASGU>
-        tau_dist_k = tau_dist_log(:, k); %#ok<NASGU>
+        tau_grav_k = tau_grav_log(:, k);
+        tau_dist_k = tau_dist_log(:, k);
     end
 
     mode_int = mode_log(k);
