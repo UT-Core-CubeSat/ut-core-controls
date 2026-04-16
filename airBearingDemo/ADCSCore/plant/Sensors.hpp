@@ -27,6 +27,7 @@ public:
 
 private: 
     // Private Methods 
+    void updateBiasStates(const Scalar& dt);
     Vector3 accelerometer(const StateVector& states_dot, 
                           const StateVector& states);
     Vector3 gyroscope(const StateVector& states);
@@ -48,11 +49,15 @@ private:
     Scalar Ts;
     // accelerometer
     Vector3 beta_a;
+    Vector3 beta_a_state;
     Vector3 sigma_a;
+    Vector3 sigma_bias_walk_a;
 
     // gyro
     Vector3 sigma_gyro;
     Vector3 beta_gyro;
+    Vector3 beta_gyro_state;
+    Vector3 sigma_bias_walk_gyro;
 
     // sun sensor
     Scalar I_max;
@@ -61,7 +66,9 @@ private:
 
     // magnetometer
     Vector3 beta_mag;
+    Vector3 beta_mag_state;
     Vector3 sigma_mag;
+    Vector3 sigma_bias_walk_mag;
     Vector3 magnitude;
 
     // Wheels

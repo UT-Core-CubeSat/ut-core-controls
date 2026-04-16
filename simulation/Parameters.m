@@ -255,18 +255,18 @@ end
 
 function p = getPlotSettings()
 p.active_figure = 1;
-p.animate_orientation = true;
+p.animate_orientation = false;
 p.animate_orbit       = false;
 p.plot_translation    = false;
 p.plot_orientation    = true;
-p.plot_input          = true;
-p.plot_RPM            = true;
+p.plot_input          = false;
+p.plot_RPM            = false;
 p.plot_reference      = true;
 p.plot_estimate       = true;
 p.plot_model          = false;
 p.plot_adapt          = false;
 p.plot_error          = false;
-p.plot_measurements   = true;
+p.plot_measurements   = false;
 end
 
 function s = mergeStructs(s, new)

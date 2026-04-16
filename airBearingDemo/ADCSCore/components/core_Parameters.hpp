@@ -181,34 +181,80 @@ namespace Param {
     // OBSERVER TUNING
 
     namespace Observer {
-        // Earth rotation (for frame transformations)
-        static const Vector3 omega_earth = Vector3{static_cast<Real>(0.0), static_cast<Real>(0.0), static_cast<Real>(7.2921159e-5)};
-        
-        // Gyro parameters (vector forms for initialization)
-        static const Vector3 beta_gyro = Vector3{
-            static_cast<Real>(0.02) * deg2rad, static_cast<Real>(0.02) * deg2rad, static_cast<Real>(0.02) * deg2rad};
-        static const Vector3 sigma_gyro = Vector3{
-            static_cast<Real>(0.1) * deg2rad, static_cast<Real>(0.1) * deg2rad, static_cast<Real>(0.1) * deg2rad};
-        static const Vector3 sigma_bias_walk = Vector3{
-            static_cast<Real>(0.002) * deg2rad, static_cast<Real>(0.002) * deg2rad, static_cast<Real>(0.002) * deg2rad};
-        constexpr Real tau_bias = static_cast<Real>(1800.0); // [s] Bias correlation time (for drift)
+        // ================================================================
+        // TUNABLE KNOBS (edit this block first)
+        // ================================================================
+        namespace Knobs {
+            // Earth rotation (for frame transformations)
+            constexpr Real omega_earth_z = static_cast<Real>(7.2921159e-5);
 
-        // Scalar versions for covariance matrices
-        constexpr Real sigma_gyro_rad = static_cast<Real>(0.1) * deg2rad;
-        constexpr Real sigma_bias_walk_rad = static_cast<Real>(0.002) * deg2rad;
-        constexpr Real sigma_star_rad = (static_cast<Real>(100.0) / static_cast<Real>(3600.0)) * deg2rad;
+            // Reference directions for vector-based updates
+            inline const Vector3 g_ref = Vector3{static_cast<Real>(0.0), static_cast<Real>(0.0), static_cast<Real>(1.0)};
+            inline const Vector3 B_ref = Vector3{static_cast<Real>(1.0), static_cast<Real>(1.0), static_cast<Real>(1.0)}.normalized();
 
-        // Update periods
-        constexpr Real T_star = static_cast<Real>(0.5);   // Star tracker update period [s]
-        constexpr Real T_quest = static_cast<Real>(0.5);  // QUEST update period [s]
-        
-        // CSS parameter for sun vector synthesis
-        constexpr Real I_max = static_cast<Real>(10e-3);  // Maximum CSS current [A]
+            // Measurement validity gates
+            constexpr Real accel_min_norm = static_cast<Real>(0.1);
+            constexpr Real mag_min_norm = static_cast<Real>(1e-9);
+
+            // Initial gyro bias estimate [deg/s]
+            inline const Vector3 beta_gyro_deg_s = Vector3{
+                static_cast<Real>(0.02), static_cast<Real>(0.02), static_cast<Real>(0.02)};
+
+            // Gyro white noise sigma [deg/s]
+            inline const Vector3 sigma_gyro_deg_s = Vector3{
+                static_cast<Real>(0.1), static_cast<Real>(0.1), static_cast<Real>(0.1)};
+
+            // Gyro bias random walk sigma [deg/s]
+            inline const Vector3 sigma_bias_walk_deg_s = Vector3{
+                static_cast<Real>(0.002), static_cast<Real>(0.002), static_cast<Real>(0.002)};
+
+            // Gyro bias correlation time [s]
+            constexpr Real tau_bias = static_cast<Real>(1800.0);
+
+            // Initial covariance sigmas
+            constexpr Real p0_angle_sigma_deg = static_cast<Real>(5.0); // 5 
+            constexpr Real p0_bias_sigma_deg_s = static_cast<Real>(0.1); // 0.1
+
+            // Star tracker/QUEST settings
+            constexpr Real sigma_star_arcsec = static_cast<Real>(100.0); // 100
+            constexpr Real quest_accuracy_deg = static_cast<Real>(15.0); // 15
+            constexpr Real T_star = static_cast<Real>(0.5); // 0.5
+            constexpr Real T_quest = static_cast<Real>(0.5); // 0.5
+
+            // MEKF vector measurement covariance (unit-vector residual variance)
+            constexpr Real R_accel_var = static_cast<Real>(1e-4); // 1e-4
+            constexpr Real R_mag_var = static_cast<Real>(1e-2); // 1e-3
+
+            // CSS parameter for sun vector synthesis
+            constexpr Real I_max = static_cast<Real>(10e-3); // 10e-3
+        }
+
+        // ================================================================
+        // DERIVED EXPORTS (consumed by observer/controller code)
+        // ================================================================
+        inline const Vector3 omega_earth = Vector3{static_cast<Real>(0.0), static_cast<Real>(0.0), Knobs::omega_earth_z};
+
+        inline const Vector3 g_ref = Knobs::g_ref;
+        inline const Vector3 B_ref = Knobs::B_ref;
+
+        constexpr Real accel_min_norm = Knobs::accel_min_norm;
+        constexpr Real mag_min_norm = Knobs::mag_min_norm;
+
+        inline const Vector3 beta_gyro = Knobs::beta_gyro_deg_s * deg2rad;
+        inline const Vector3 sigma_gyro = Knobs::sigma_gyro_deg_s * deg2rad;
+        inline const Vector3 sigma_bias_walk = Knobs::sigma_bias_walk_deg_s * deg2rad;
+        constexpr Real tau_bias = Knobs::tau_bias;
+
+        constexpr Real sigma_star_rad = (Knobs::sigma_star_arcsec / static_cast<Real>(3600.0)) * deg2rad;
+        constexpr Real quest_accuracy = Knobs::quest_accuracy_deg * deg2rad;
+        constexpr Real T_star = Knobs::T_star;
+        constexpr Real T_quest = Knobs::T_quest;
+        constexpr Real I_max = Knobs::I_max;
 
         inline const Matrix6 P_0 = [] {
             Matrix6 m = Matrix6::Zero();
-            Real angle_var = (static_cast<Real>(5.0) * deg2rad) * (static_cast<Real>(5.0) * deg2rad);
-            Real bias_var = (static_cast<Real>(0.1) * deg2rad) * (static_cast<Real>(0.1) * deg2rad);  // 0.1 deg/s bias uncertainty
+            Real angle_var = (Knobs::p0_angle_sigma_deg * deg2rad) * (Knobs::p0_angle_sigma_deg * deg2rad);
+            Real bias_var = (Knobs::p0_bias_sigma_deg_s * deg2rad) * (Knobs::p0_bias_sigma_deg_s * deg2rad);
             m(0,0) = angle_var; m(1,1) = angle_var; m(2,2) = angle_var;
             m(3,3) = bias_var;  m(4,4) = bias_var;  m(5,5) = bias_var;
             return m;
@@ -221,30 +267,39 @@ namespace Param {
             return m;
         }();
 
-        // Discrete-time process noise (applied per timestep, will be scaled by dt in observer)
+        // Discrete-time process noise template (actual filter still scales by dt)
         inline const Matrix6 Q = [] {
             Matrix6 q_mat = Matrix6::Zero();
-            // Gyro noise variance per sample: sigma^2
-            Real gyro_var = sigma_gyro_rad * sigma_gyro_rad;
-            // Bias random walk variance per sample: sigma^2
-            Real bias_walk_var = sigma_bias_walk_rad * sigma_bias_walk_rad;
-            q_mat(0,0) = gyro_var; q_mat(1,1) = gyro_var; q_mat(2,2) = gyro_var;
-            q_mat(3,3) = bias_walk_var; q_mat(4,4) = bias_walk_var; q_mat(5,5) = bias_walk_var;
+            q_mat(0,0) = sigma_gyro(0) * sigma_gyro(0);
+            q_mat(1,1) = sigma_gyro(1) * sigma_gyro(1);
+            q_mat(2,2) = sigma_gyro(2) * sigma_gyro(2);
+            q_mat(3,3) = sigma_bias_walk(0) * sigma_bias_walk(0);
+            q_mat(4,4) = sigma_bias_walk(1) * sigma_bias_walk(1);
+            q_mat(5,5) = sigma_bias_walk(2) * sigma_bias_walk(2);
             return q_mat;
         }();
 
         inline const Matrix3 R_star = [] {
             Matrix3 m = Matrix3::Zero();
-            Real var = static_cast<Real>(4) * sigma_star_rad * sigma_star_rad;
+            Real var = static_cast<Real>(4.0) * sigma_star_rad * sigma_star_rad;
             m(0,0) = var; m(1,1) = var; m(2,2) = var;
             return m;
         }();
 
-        constexpr Real quest_accuracy = static_cast<Real>(15.0) * deg2rad;
         inline const Matrix3 R_quest = [] {
             Matrix3 m = Matrix3::Zero();
             Real var = quest_accuracy * quest_accuracy;
             m(0,0) = var; m(1,1) = var; m(2,2) = var;
+            return m;
+        }();
+
+        inline const Matrix3 R_accel = [] {
+            Matrix3 m = Matrix3::Identity() * Knobs::R_accel_var;
+            return m;
+        }();
+
+        inline const Matrix3 R_mag = [] {
+            Matrix3 m = Matrix3::Identity() * Knobs::R_mag_var;
             return m;
         }();
     }

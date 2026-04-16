@@ -1,6 +1,7 @@
 #include "Sensors.hpp"
 #include <iostream> // For debugging purposes
 #include <random>
+#include <cmath>
 
 // Constructor 
 SensorsClass::SensorsClass()
@@ -10,13 +11,19 @@ SensorsClass::SensorsClass()
     Ts(PlantParam::SimTime::Ts),
     // accelerometer
     beta_a(PlantParam::Sensors::beta_a),
+    beta_a_state(beta_a),
     sigma_a(PlantParam::Sensors::sigma_a),
+    sigma_bias_walk_a(PlantParam::Sensors::sigma_bias_walk_a),
     // gyro
     sigma_gyro(PlantParam::Sensors::sigma_gyro),
     beta_gyro(PlantParam::Sensors::beta_gyro),
+    beta_gyro_state(beta_gyro),
+    sigma_bias_walk_gyro(PlantParam::Sensors::sigma_bias_walk),
     // magnetometer
     beta_mag(PlantParam::Sensors::beta_mag),
+    beta_mag_state(beta_mag),
     sigma_mag(PlantParam::Sensors::sigma_mag),
+    sigma_bias_walk_mag(PlantParam::Sensors::sigma_bias_walk_mag),
     magnitude(PlantParam::Apparatus::helmholtz_mag),
     // reaction wheels
     omega_w_previous(PlantParam::InitialState.omega_wheel),
@@ -27,11 +34,26 @@ SensorsClass::SensorsClass()
     
 }
 
+void SensorsClass::updateBiasStates(const Scalar& dt) {
+    if (dt <= static_cast<Scalar>(0.0)) {
+        return;
+    }
+
+    // Discrete random walk: b[k+1] = b[k] + sigma_walk * sqrt(dt) * N(0,1)
+    Scalar sqrt_dt = static_cast<Scalar>(std::sqrt(static_cast<double>(dt)));
+    beta_a_state += sigma_bias_walk_a.cwiseProduct(randn<3>()) * sqrt_dt;
+    beta_gyro_state += sigma_bias_walk_gyro.cwiseProduct(randn<3>()) * sqrt_dt;
+    beta_mag_state += sigma_bias_walk_mag.cwiseProduct(randn<3>()) * sqrt_dt;
+}
+
 SensorsClass::Measurements SensorsClass::measurements(const StateVector& states_dot, 
                                         const StateVector& states, 
                                         const Scalar& t) {
     // Compute current Unix timestamp from epoch + simulation time
     current_time = epoch_time + t;
+
+    // Update stochastic bias states once per sensor frame
+    updateBiasStates(Ts);
 
     // update accelerometer
     Vector3 y_a = accelerometer(states_dot, states);
@@ -78,7 +100,7 @@ SensorsClass::Vector3 SensorsClass::accelerometer(const StateVector& states_dot,
     Vector3 a_sensed = -g_body;  // Points "up" in body frame
     
     // Add bias and noise
-    Vector3 y_a = a_sensed + beta_a + sigma_a.cwiseProduct(randn<3>());
+    Vector3 y_a = a_sensed + beta_a_state + sigma_a.cwiseProduct(randn<3>());
 
     return y_a;
 }
@@ -88,7 +110,7 @@ SensorsClass::Vector3 SensorsClass::gyroscope(const StateVector& states) {
     Vector3 omega = states.segment<3>(4);
 
     // add bias and noise 
-    Vector3 y_gyro = omega + beta_gyro + sigma_gyro.cwiseProduct(randn<3>());
+    Vector3 y_gyro = omega + beta_gyro_state + sigma_gyro.cwiseProduct(randn<3>());
 
     return y_gyro;
 }
@@ -105,7 +127,7 @@ SensorsClass::Vector3 SensorsClass::magnetometer(const StateVector& states) {
     Vector3 B_body = helpers.quatRotate(q_conj, magnitude);
     
     // Add bias and noise
-    Vector3 y_B = B_body + beta_mag + sigma_mag.cwiseProduct(randn<3>());
+    Vector3 y_B = B_body + beta_mag_state + sigma_mag.cwiseProduct(randn<3>());
     return y_B;
 }
 

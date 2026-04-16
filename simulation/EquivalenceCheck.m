@@ -1,10 +1,32 @@
 %% Equivalence Check / Playback Tool
 clear; clc; close all;
 
-filename = 'build/simulation_data.csv';
-if ~isfile(filename)
-    error('Could not find %s. Make sure you ran the C++ simulation and the file is in the current directory.', filename);
+% Select newest available CSV to avoid plotting stale output.
+candidate_files = {
+    'build/simulation_data.csv', ...
+    'build/Debug/simulation_data.csv', ...
+    'simulation_data.csv', ...
+    '../simulation/simulation_data.csv'
+};
+
+existing_files = {};
+existing_times = [];
+for i = 1:numel(candidate_files)
+    f = candidate_files{i};
+    if isfile(f)
+        d = dir(f);
+        existing_files{end+1} = f; %#ok<AGROW>
+        existing_times(end+1) = d.datenum; %#ok<AGROW>
+    end
 end
+
+if isempty(existing_files)
+    error('Could not find simulation_data.csv in expected locations. Run PlantSim first.');
+end
+
+[~, newest_idx] = max(existing_times);
+filename = existing_files{newest_idx};
+fprintf('Using data file: %s\n', filename);
 
 opts = detectImportOptions(filename);
 opts.VariableNamingRule = 'preserve';

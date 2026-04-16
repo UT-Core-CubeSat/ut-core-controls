@@ -31,6 +31,10 @@ private:
     Scalar tau_bias;
     Vector3 g_ref;
     Vector3 B_ref;
+    Param::Matrix3 R_accel;
+    Param::Matrix3 R_mag;
+    Scalar accel_min_norm;
+    Scalar mag_min_norm;
     Param::Matrix6 P;
     Param::Matrix6 G;
     Param::Matrix6 Q;

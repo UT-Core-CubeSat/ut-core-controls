@@ -37,7 +37,7 @@ namespace PlantParam {
     namespace SimTime {
         constexpr Real Ts = static_cast<Real>(0.025);  // Sample period [s] - 40 Hz loop rate
         constexpr Real t_start = static_cast<Real>(0.0);            // Simulation start [s]
-        constexpr Real t_end = static_cast<Real>(240.0);           // Simulation end [s]
+        constexpr Real t_end = static_cast<Real>(60.0);           // Simulation end [s]
         constexpr Real t_plot = static_cast<Real>(0.1);             // Data logging interval [s]
         constexpr Real speed = static_cast<Real>(1.0);              // Simulation speed multiplier
         inline const TimeReal epoch_timestamp = static_cast<TimeReal>(std::time(nullptr));  // Use TimeReal for Unix timestamp precision
@@ -173,6 +173,7 @@ namespace PlantParam {
         // Accelerometer
         inline const Vector3 beta_a = Vector3{static_cast<Real>(0.0), static_cast<Real>(0.0), static_cast<Real>(0.0)};
         inline const Vector3 sigma_a = Vector3{static_cast<Real>(0.0003), static_cast<Real>(0.0003), static_cast<Real>(0.0003)};
+        inline const Vector3 sigma_bias_walk_a = Vector3{static_cast<Real>(1e-5), static_cast<Real>(1e-5), static_cast<Real>(1e-5)};
 
         // Gyroscope
         inline const Vector3 sigma_bias_walk = Vector3{
@@ -184,6 +185,7 @@ namespace PlantParam {
         // Magnetometer
         inline const Vector3 beta_mag = Vector3{static_cast<Real>(2e-7), static_cast<Real>(2e-7), static_cast<Real>(2e-7)};
         inline const Vector3 sigma_mag = Vector3{static_cast<Real>(5e-8), static_cast<Real>(5e-8), static_cast<Real>(5e-8)};
+        inline const Vector3 sigma_bias_walk_mag = Vector3{static_cast<Real>(5e-10), static_cast<Real>(5e-10), static_cast<Real>(5e-10)};
 
         // Star Tracker
         inline const Vector3 beta_star = Vector3{static_cast<Real>(0.0), static_cast<Real>(0.0), static_cast<Real>(0.0)};

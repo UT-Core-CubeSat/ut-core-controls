@@ -13,8 +13,12 @@ ObserverClass::ObserverClass()
       epoch_time(static_cast<Param::TimeReal>(0.0)), 
       current_time(static_cast<Param::TimeReal>(0.0)),
       last_q_star(Param::Vector4::Zero()),
-      g_ref(Vector3{0, 0, 1}),  // Reference gravity direction (up in inertial)
-      B_ref(Vector3{1, 1, 1}.normalized())  // or Vector3{0.577, 0.577, 0.577}
+    g_ref(Param::Observer::g_ref),
+    B_ref(Param::Observer::B_ref),
+    R_accel(Param::Observer::R_accel),
+    R_mag(Param::Observer::R_mag),
+    accel_min_norm(Param::Observer::accel_min_norm),
+    mag_min_norm(Param::Observer::mag_min_norm)
 {
     q_hat(0) = 1; q_hat(1) = 0; q_hat(2) = 0; q_hat(3) = 0;
 }
@@ -77,7 +81,7 @@ void ObserverClass::updateWithGravity(const Vector3& accel_meas, Scalar dt) {
     
     // Normalize measured acceleration (gravity direction in body)
     Scalar accel_norm = accel_meas.norm();
-    if (accel_norm < static_cast<Scalar>(0.1)) {
+    if (accel_norm < accel_min_norm) {
         return;  // Skip update if acceleration too small
     }
     
@@ -101,11 +105,6 @@ void ObserverClass::updateWithGravity(const Vector3& accel_meas, Scalar dt) {
     H(0,3) = 0; H(0,4) = 0; H(0,5) = 0;
     H(1,3) = 0; H(1,4) = 0; H(1,5) = 0;
     H(2,3) = 0; H(2,4) = 0; H(2,5) = 0;
-    
-    // Measurement noise covariance
-    // For unit vector, R should be ~(sensor_noise/signal)^2
-    // If accel noise ~0.1 m/s² on 9.8 m/s², that's ~(0.01)² ≈ 1e-4
-    Param::Matrix3 R_accel = Param::Matrix3::Identity() * static_cast<Scalar>(0.0001);
     
     // Kalman gain: K = P * H' * (H * P * H' + R)^-1
     Param::Matrix3 S_innov = H * P * H.transpose() + R_accel;
@@ -138,7 +137,7 @@ void ObserverClass::updateWithGravity(const Vector3& accel_meas, Scalar dt) {
 void ObserverClass::updateWithMagnetometer(const Vector3& mag_meas, Scalar dt) {
     // Normalize measured magnetic field
     Scalar mag_norm = mag_meas.norm();
-    if (mag_norm < static_cast<Scalar>(1e-9)) {
+    if (mag_norm < mag_min_norm) {
         return;  // Skip if no valid measurement
     }
     Vector3 B_meas_body = mag_meas / mag_norm;
@@ -160,9 +159,6 @@ void ObserverClass::updateWithMagnetometer(const Vector3& mag_meas, Scalar dt) {
     H(0,3) = 0; H(0,4) = 0; H(0,5) = 0;
     H(1,3) = 0; H(1,4) = 0; H(1,5) = 0;
     H(2,3) = 0; H(2,4) = 0; H(2,5) = 0;
-    
-    // Measurement noise (magnetometer noisier than accel, but still smaller than before)
-    Param::Matrix3 R_mag = Param::Matrix3::Identity() * static_cast<Scalar>(0.001);
     
     // Kalman gain
     Param::Matrix3 S_innov = H * P * H.transpose() + R_mag;
