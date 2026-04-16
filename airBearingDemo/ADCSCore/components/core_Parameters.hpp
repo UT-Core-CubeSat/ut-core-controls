@@ -84,10 +84,27 @@ namespace Param {
     // ACTUATORS
 
     namespace Actuators {
-        // Magnetorquers (disabled for air bearing - no varying B-field)
+        // Magnetorquers: Body Dipole Command [A·m²]
         constexpr Real m_max = static_cast<Real>(0.04);  // [A·m²]
         constexpr Real m_min = -m_max;
         constexpr Real k_desat = static_cast<Real>(15);
+
+        // Coil Calibration: Per-Face Magnetorquer PCB Design
+        // 4 embedded coils on long faces: +X, -X, +Y, -Y (Z faces inactive)
+        // K_coil[i] = N_turns * A_coil [m²] for face i
+        // Used to convert body dipole → per-face current: I_face = m_cmd / K_coil
+        // PLACEHOLDER: Calibrate with actual PCB measurements or Helmholtz test
+        namespace Coils {
+            constexpr Real K_coil_x = static_cast<Real>(0.015);  // [m²] +X face coil constant (N*A)
+            constexpr Real K_coil_nx = static_cast<Real>(0.015); // [m²] -X face coil constant
+            constexpr Real K_coil_y = static_cast<Real>(0.015);  // [m²] +Y face coil constant
+            constexpr Real K_coil_ny = static_cast<Real>(0.015); // [m²] -Y face coil constant
+            constexpr Real I_max = static_cast<Real>(0.5);       // [A] Max per-coil current limit
+            // Mapping: (m_x, m_y) → (I_Xpos, I_Xneg, I_Ypos, I_Yneg)
+            // +X coil produces field in +X direction when I > 0
+            // -X coil produces field in +X direction when I < 0 (polarity reversed)
+            // Likewise for Y faces
+        }
 
         // Reaction Wheels
         constexpr Real I_wheel = static_cast<Real>(1.13e-6);

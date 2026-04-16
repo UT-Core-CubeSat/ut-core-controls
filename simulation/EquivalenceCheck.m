@@ -87,7 +87,7 @@ for k = 1:length(time_log)
 
     animation.update(states_k, ref_k, mode_str);
     plotter.update(t, states_k, est_k, ref_k, model_k, input_k, meas_k, mode_str);
-    % drawnow;
+    %drawnow;
 end
 
 fprintf('Playback Complete.\n');

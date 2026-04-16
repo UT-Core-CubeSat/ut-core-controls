@@ -69,10 +69,10 @@ namespace PlantParam {
         // Positive h = CG above pivot (unstable without control)
         // Negative h = CG below pivot (passively stable, pendulum-like)
         // |h| should be small (1-20mm) for challenging but achievable control
-        constexpr Real h_cg = static_cast<Real>(0.000);  // [m] 5mm above pivot
+        constexpr Real h_cg = static_cast<Real>(-0.005);  // [m] 5mm below pivot
         
         // Distance from pivot to base of cubesat [m]
-        constexpr Real P = static_cast<Real>(0.1);
+        constexpr Real P = static_cast<Real>(0.015);
         
         // =====================================================================
         // DISTURBANCE PARAMETERS
@@ -84,7 +84,7 @@ namespace PlantParam {
         // ANALYSIS: Wheel torque capability ~17 mN·m per axis
         // Max rejectable disturbance: τ = F*r → F = 0.017/0.15 = 0.11 N
         // Using 0.08 N for ~20% margin: τ = 0.08*0.15 = 12 mN·m
-        constexpr Real F_disturbance_max = static_cast<Real>(1.0);  // [N] gentle push
+        constexpr Real F_disturbance_max = static_cast<Real>(0.0);  // [N] gentle push
         
         // Disturbance timing
         constexpr Real T_disturbance_period = static_cast<Real>(15.0);  // [s] Period of periodic disturbance
@@ -133,7 +133,7 @@ namespace PlantParam {
     // SPACECRAFT TRUTH (what the plant actually simulates)
     // ========================================================================
     namespace Spacecraft {
-        constexpr Real mass = static_cast<Real>(5.0);  // [kg]
+        constexpr Real mass = static_cast<Real>(3.0);  // [kg]
         static const Vector3 I_principle = Vector3{static_cast<Real>(0.0523), static_cast<Real>(0.0520), static_cast<Real>(0.0083)};
         constexpr Real Ixy = static_cast<Real>(0.0032);
         constexpr Real Ixz = static_cast<Real>(-0.0018);
@@ -158,6 +158,7 @@ namespace PlantParam {
         Vector4 q0;
         q0(0) = static_cast<Real>(1.0); q0(1) = static_cast<Real>(0.0); q0(2) = static_cast<Real>(0.0); q0(3) = static_cast<Real>(0.0);
         Vector3 w0 = Vector3::Zero();
+        w0(2) = static_cast<Real>(deg2rad * 5);  // 5 deg/s initial spin around Z-axis
         Vector4 rw0 = Vector4::Zero();
         return FullState{q0, w0, rw0};
     }();

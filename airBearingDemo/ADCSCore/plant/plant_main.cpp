@@ -166,9 +166,16 @@ int main() {
 
     std::cout << "Running Simulation..." << std::endl;
 
+    auto getCommand = [](Real t) {
+        ADCS::Command cmd;
+        // Brief SAFE window for startup, then detumble for the test.
+        cmd.mode = (t < static_cast<Real>(2.0)) ? ADCS::MissionMode::SAFE : ADCS::MissionMode::DETUMBLE;
+        return cmd;
+    };
+
     // Initial log
     logger.log(t, states_true, states_hat, reference, tau_all, measurements, 
-               states_m, tau_grav, tau_dist, static_cast<int>(Param::PointingMode::OFF));
+               states_m, tau_grav, tau_dist, static_cast<int>(ADCS::MissionMode::SAFE));
     while (t < t_end) {
         while (t <= t_next_plot) {
             Param::Vector11 states_dot = dynamics.getStatesDot();
@@ -176,9 +183,10 @@ int main() {
 
             TimeReal unix_time = epoch + t;
             ADCS::SensorData sensorData = packSensorData(measurements, unix_time);
+            ADCS::Command cmd = getCommand(t);
 
             // Call Core
-            ADCS::AdcsOutput actuators = adcsCore.update(sensorData);
+            ADCS::AdcsOutput actuators = adcsCore.update(sensorData, cmd);
 
             // Remove these later !!!
             states_hat = actuators.states_hat;
@@ -202,8 +210,9 @@ int main() {
         // states_hat = states_true; // For logging equivalence only
         tau_grav = dynamics.getTauGravity();      // NEW
         tau_dist = dynamics.getTauDisturbance();  // NEW
+        ADCS::Command current_cmd = getCommand(t);
         logger.log(t, states_true, states_hat, reference, tau_all, measurements, 
-                   states_m, tau_grav, tau_dist, static_cast<int>(Param::PointingMode::OFF));
+                   states_m, tau_grav, tau_dist, static_cast<int>(current_cmd.mode));
         t_next_plot = t + t_plot;
     }
 

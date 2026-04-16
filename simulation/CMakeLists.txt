@@ -50,6 +50,7 @@ set(CORE_SOURCES
     ${BASE_DIR}/components/core_ControllerNDI.cpp
     ${BASE_DIR}/components/core_ControllerBDot.cpp
     ${BASE_DIR}/components/core_HelperFunctions.cpp
+    ${BASE_DIR}/components/core_MTQAllocator.cpp
 )
 
 if(USE_ORBIT)

@@ -3,8 +3,21 @@
 
 #include <core_Observer.hpp>
 #include <core_ControllerManager.hpp>
+#include <core_MTQAllocator.hpp>
 
 namespace ADCS {
+
+// COMMAND INTERFACE (What CDH/Ground sends to ADCS)
+enum class MissionMode {
+    SAFE,      // Controllers OFF
+    DETUMBLE,  // B-dot active
+    POINT      // NDI active
+};
+
+struct Command {
+    MissionMode mode;
+    Command() : mode(MissionMode::POINT) {}
+};
 
 // SENSOR INTERFACE (What CAN provides from sensors)
 struct SensorData {
@@ -22,6 +35,12 @@ struct AdcsOutput {
     Math::Vec<4> attitude_est;
     Math::Vec<3> rate_est;
     bool estimator_valid;
+    MissionMode current_mode;
+    
+    // Per-Face Magnetorquer Derived Outputs (auto-populated from mtq_dipole)
+    // Software engineer uses these directly for CAN without needing control law knowledge
+    Math::Vec<4> mtq_face_current;        // [A] Per-face current: [I_Xpos, I_Xneg, I_Ypos, I_Yneg]
+    Math::Vec<4> mtq_face_b_ref;          // [T] Per-face reference field magnitude produced at face
     
     // These are for logging equivalence. Won't be here in orbit, but they make it easier to plot and debug in simulation.
     Param::Vector10 reference;   // Reference trajectory
@@ -34,6 +53,7 @@ class Core {
 public: 
     Core();
     
+    AdcsOutput update(const SensorData& sensors, const Command& command);
     AdcsOutput update(const SensorData& sensors);
     
     void reset();
@@ -41,10 +61,10 @@ public:
 private:
     ObserverClass observer_;
     ControllerManager controller_;
+    MTQAllocator mtq_allocator_;  // Per-face magnetorquer current and field allocator
 
     Param::TimeReal last_time; // Store last update time 
     bool first_update; // Flag for first call
-    Param::PointingMode mode;
 };
 
 } // namespace ADCS

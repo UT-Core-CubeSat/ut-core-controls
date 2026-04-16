@@ -7,39 +7,65 @@ Use the `USE_ORBIT` CMake option to select between the two code bases:
 - `ON`: builds the orbit simulation from `../forOrbit/ADCSCore`
 
 
-## All in one copy and paste: (Start at the ut-core-controls parent folder in powershell)
+## All-in-one copy/paste (PowerShell)
 
-## For Air Bearing Demo (Default config)
+### For Air Bearing Demo (default)
+```powershell
+Set-Location C:\Users\arick\Desktop\ut-core-controls
+if (Test-Path simulation\build) { Remove-Item simulation\build -Recurse -Force }
+New-Item -ItemType Directory -Path simulation\build | Out-Null
+Set-Location simulation\build
+cmake ..
+cmake --build . --config Debug
+.\Debug\PlantSim.exe
+```
+
+### For Orbit Simulation
+```powershell
+Set-Location C:\Users\arick\Desktop\ut-core-controls
+if (Test-Path simulation\build) { Remove-Item simulation\build -Recurse -Force }
+New-Item -ItemType Directory -Path simulation\build | Out-Null
+Set-Location simulation\build
+cmake .. -DUSE_ORBIT=ON
+cmake --build . --config Debug
+.\Debug\PlantSim.exe
+```
+
+## Same flow in cmd.exe (not PowerShell)
+
+### Air Bearing Demo (default)
+```bat
 cd /d C:\Users\arick\Desktop\ut-core-controls
-rmdir /s /q simulation\build 2>nul
+rmdir /s /q simulation\build
 mkdir simulation\build
 cd simulation\build
 cmake ..
 cmake --build . --config Debug
-.\Debug\PlantSim.exe
+Debug\PlantSim.exe
+```
 
-## For Orbit Simulation
+### Orbit Simulation
+```bat
 cd /d C:\Users\arick\Desktop\ut-core-controls
-rmdir /s /q simulation\build 2>nul
+rmdir /s /q simulation\build
 mkdir simulation\build
 cd simulation\build
 cmake .. -DUSE_ORBIT=ON
 cmake --build . --config Debug
-.\Debug\PlantSim.exe
+Debug\PlantSim.exe
+```
 
 ## Build steps
 
-1. Create and enter a build directory:
+1. Create and enter a build directory (from the `ut-core-controls` root):
 
-(From the ut-core-controls parent folder)
-```bash
-mkdir -p simulation/build
-cd build
+```powershell
+Set-Location C:\Users\arick\Desktop\ut-core-controls
+if (-not (Test-Path simulation\build)) { New-Item -ItemType Directory -Path simulation\build | Out-Null }
+Set-Location simulation\build
 ```
 
 2. Configure the project:
-
-(Navigate to the simulation/build folder: cd simulation/build)
 
 - Air bearing demo (default):
 

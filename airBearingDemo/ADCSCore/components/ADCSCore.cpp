@@ -3,11 +3,11 @@
 namespace ADCS {
 
 Core::Core()
-    : observer_(), controller_(), first_update(true), last_time(static_cast<Param::TimeReal>(0.0)), mode(Param::PointingMode::POINT)
+    : observer_(), controller_(), first_update(true), last_time(static_cast<Param::TimeReal>(0.0))
 {
 }
 
-AdcsOutput Core::update(const SensorData& sensors)
+AdcsOutput Core::update(const SensorData& sensors, const Command& command)
 {
 
     // Compute variable dt 
@@ -35,9 +35,16 @@ AdcsOutput Core::update(const SensorData& sensors)
     Param::Real dt_scalar = static_cast<Param::Real>(dt);  // Safe: dt is small (0.025s), no precision loss
     Param::Vector11 states_hat = observer_.update(meas, sensors.unix_time, dt_scalar);
 
-    // 3. Run reference generator with command
+    // 3. Build reference and map mission mode to internal pointing mode
     Param::Vector10 reference = Param::Vector10::Zero();
     reference(0) = 1; // unit quaternion, no rotation
+
+    Param::PointingMode mode = Param::PointingMode::POINT;
+    if (command.mode == MissionMode::SAFE) {
+        mode = Param::PointingMode::OFF;
+    } else if (command.mode == MissionMode::DETUMBLE) {
+        mode = Param::PointingMode::DETUMBLE;
+    }
 
     // 4. Run controller
     auto ctrl_out = controller_.update(states_hat, reference, meas, mode, dt_scalar);
@@ -49,6 +56,13 @@ AdcsOutput Core::update(const SensorData& sensors)
     out.attitude_est = states_hat.segment<4>(6);
     out.rate_est = states_hat.segment<3>(10);
     out.estimator_valid = !states_hat.hasNaN();
+    out.current_mode = command.mode;
+
+    // 6. Allocate body dipole to per-face currents and reference fields (black-box derivation)
+    // Software engineer receives these ready-to-use without understanding control law
+    auto alloc_out = mtq_allocator_.allocate(out.mtq_dipole, sensors.magnetometer);
+    out.mtq_face_current = alloc_out.face_current;
+    out.mtq_face_b_ref = alloc_out.face_b_ref;
 
     // Adding equivalence variables, this is just for plotting and wouldn't be needed in orbit
     out.reference = reference; 
@@ -58,12 +72,17 @@ AdcsOutput Core::update(const SensorData& sensors)
     return out;
 }
 
+AdcsOutput Core::update(const SensorData& sensors)
+{
+    Command default_command;
+    return update(sensors, default_command);
+}
+
 void Core::reset() {
     observer_ = ObserverClass();
     controller_ = ControllerManager();
     first_update = true;
     last_time = static_cast<Param::TimeReal>(0.0);
-    mode = Param::PointingMode::POINT;
 }
 
 } // namespace ADCS

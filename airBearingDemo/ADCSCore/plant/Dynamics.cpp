@@ -163,7 +163,7 @@ Dynamics::forceOutput Dynamics::forces_and_moments(const InputVector& inputs,
                                                     const Vector3& omega,
                                                     const Scalar& t) {
     
-    Vector3 tau_mtq = inputs.segment<3>(4);
+    Vector3 m_cmd = inputs.segment<3>(4);
     
     Vector4 omega_wheel = states.segment<4>(7);
     // =====================================================================
@@ -250,6 +250,7 @@ Dynamics::forceOutput Dynamics::forces_and_moments(const InputVector& inputs,
     // =====================================================================
     InputVector moments;
     moments.setSegment(0, tau_wheel_net);
+    moments.setSegment(4, m_cmd);
 
     // Store for logging
     tau_gravity_current = tau_gravity;
