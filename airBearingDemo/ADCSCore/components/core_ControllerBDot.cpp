@@ -37,16 +37,24 @@ ControllerBDot::Vector3 ControllerBDot::update(const Measurements& measurements,
         return Vector3::Zero();
     }
 
+    // RTOS Optimization: Pre-compute norm once and avoid redundant computations
+    Scalar B_norm = B_now.norm();
+    Scalar B_norm_threshold = static_cast<Scalar>(1e-9);
+    
     // Apply low-pass filter to B_dot
-    Bdot_num_filt = (static_cast<Scalar>(1) - alpha_Bdot)*(B_now - B_prev) / dt + alpha_Bdot * Bdot_num_filt;
-    B_dot = (static_cast<Scalar>(1)-beta_fuse)*(-omega_meas.cross(B_now)) + beta_fuse*Bdot_num_filt;
-    m_tilde = -K_Bdot*B_dot;
-    // Saturate magnetic moment
-    if (B_now.norm() > static_cast<Scalar>(1e-9)) {
-        Real inv_norm = static_cast<Scalar>(1.0) / B_now.norm();
+    Scalar dt_inv = static_cast<Scalar>(1.0) / dt;  // Pre-compute reciprocal (faster than division)
+    Bdot_num_filt = (static_cast<Scalar>(1) - alpha_Bdot) * (B_now - B_prev) * dt_inv + alpha_Bdot * Bdot_num_filt;
+    B_dot = (static_cast<Scalar>(1) - beta_fuse) * (-omega_meas.cross(B_now)) + beta_fuse * Bdot_num_filt;
+    m_tilde = -K_Bdot * B_dot;
+    
+    // Saturate magnetic moment and project perpendicular to B-field (rank-1 projection)
+    if (B_norm > B_norm_threshold) {
+        // Use pre-computed norm to avoid redundant calculation
+        Scalar inv_norm = static_cast<Scalar>(1.0) / B_norm;
         Bh = B_now * inv_norm;
 
         // Direct rank-1 projection: m_tilde -= Bh * (Bh.dot(m_tilde))
+        // This removes the parallel component; no wasted torque along B-field
         m_tilde -= Bh * Bh.dot(m_tilde);
     }
     

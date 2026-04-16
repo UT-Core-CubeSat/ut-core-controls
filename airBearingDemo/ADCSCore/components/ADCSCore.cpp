@@ -3,7 +3,8 @@
 namespace ADCS {
 
 Core::Core()
-    : observer_(), controller_(), first_update(true), last_time(static_cast<Param::TimeReal>(0.0))
+    : observer_(), controller_(), first_update(true), last_time(static_cast<Param::TimeReal>(0.0)),
+      workspace_meas_(Param::Vector13::Zero()), workspace_ref_(Param::Vector10::Zero())
 {
 }
 
@@ -20,24 +21,23 @@ AdcsOutput Core::update(const SensorData& sensors, const Command& command)
     }
     last_time = sensors.unix_time;
 
-    // 1. Pack measurements for observer (Vector13)
+    // 1. Pack measurements for observer (reuse workspace buffer to avoid per-call allocation)
     // [0-2]: accelerometer (gravity in body frame)
     // [3-5]: gyro (body rates)
     // [6-8]: magnetometer (B-field in body frame)
     // [9-12]: wheel speeds
-    Param::Vector13 meas;
-    meas.setSegment(0, sensors.accelerometer);
-    meas.setSegment(3, sensors.gyro);
-    meas.setSegment(6, sensors.magnetometer);
-    meas.setSegment(9, sensors.wheel_speeds);
+    workspace_meas_.setSegment(0, sensors.accelerometer);
+    workspace_meas_.setSegment(3, sensors.gyro);
+    workspace_meas_.setSegment(6, sensors.magnetometer);
+    workspace_meas_.setSegment(9, sensors.wheel_speeds);
 
     // 2. Run observer
     Param::Real dt_scalar = static_cast<Param::Real>(dt);  // Safe: dt is small (0.025s), no precision loss
-    Param::Vector11 states_hat = observer_.update(meas, sensors.unix_time, dt_scalar);
+    Param::Vector11 states_hat = observer_.update(workspace_meas_, sensors.unix_time, dt_scalar);
 
-    // 3. Build reference and map mission mode to internal pointing mode
-    Param::Vector10 reference = Param::Vector10::Zero();
-    reference(0) = 1; // unit quaternion, no rotation
+    // 3. Build reference (reuse workspace buffer; initialize for identity pointing)
+    workspace_ref_ = Param::Vector10::Zero();
+    workspace_ref_(0) = 1; // unit quaternion, no rotation
 
     Param::PointingMode mode = Param::PointingMode::POINT;
     if (command.mode == MissionMode::SAFE) {
@@ -47,7 +47,7 @@ AdcsOutput Core::update(const SensorData& sensors, const Command& command)
     }
 
     // 4. Run controller
-    auto ctrl_out = controller_.update(states_hat, reference, meas, mode, dt_scalar);
+    auto ctrl_out = controller_.update(states_hat, workspace_ref_, workspace_meas_, mode, dt_scalar);
 
     // 5. Pack output
     AdcsOutput out;
@@ -65,7 +65,7 @@ AdcsOutput Core::update(const SensorData& sensors, const Command& command)
     out.mtq_face_b_ref = alloc_out.face_b_ref;
 
     // Adding equivalence variables, this is just for plotting and wouldn't be needed in orbit
-    out.reference = reference; 
+    out.reference = workspace_ref_; 
     out.states_m = ctrl_out.states_m;
     out.states_hat = states_hat;
 

@@ -1,5 +1,4 @@
 #include "core_MTQAllocator.hpp"
-#include <cmath>
 
 MTQAllocator::AllocOutput MTQAllocator::allocate(const Vector3& m_body, const Vector3& B_measured) const
 {
@@ -11,27 +10,32 @@ MTQAllocator::AllocOutput MTQAllocator::allocate(const Vector3& m_body, const Ve
     // m_z is clamped to 0 by B-dot controller, ignored here
     
     // Coil constants (K_coil = N_turns * A_coil)
-    Real K_x = Param::Actuators::Coils::K_coil_x;
-    Real K_nx = Param::Actuators::Coils::K_coil_nx;
-    Real K_y = Param::Actuators::Coils::K_coil_y;
-    Real K_ny = Param::Actuators::Coils::K_coil_ny;
+    // RTOS Optimization: Cache coil constants locally to avoid repeated parameter lookups
+    const Real K_x = Param::Actuators::Coils::K_coil_x;
+    const Real K_nx = Param::Actuators::Coils::K_coil_nx;
+    const Real K_y = Param::Actuators::Coils::K_coil_y;
+    const Real K_ny = Param::Actuators::Coils::K_coil_ny;
+    const Real I_max = Param::Actuators::Coils::I_max;
     
-    // Allocate body dipole to per-face currents
-    // m_cmd [A·m²] = K_coil [m²] * I_face [A]
-    // => I_face = m_cmd / K_coil
+    // Pre-compute reciprocals to avoid division in hot path (multiply is faster than divide)
+    const Real K_x_inv = (std::abs(K_x) > static_cast<Real>(1e-9)) ? static_cast<Real>(1.0) / K_x : static_cast<Real>(0.0);
+    const Real K_nx_inv = (std::abs(K_nx) > static_cast<Real>(1e-9)) ? static_cast<Real>(1.0) / K_nx : static_cast<Real>(0.0);
+    const Real K_y_inv = (std::abs(K_y) > static_cast<Real>(1e-9)) ? static_cast<Real>(1.0) / K_y : static_cast<Real>(0.0);
+    const Real K_ny_inv = (std::abs(K_ny) > static_cast<Real>(1e-9)) ? static_cast<Real>(1.0) / K_ny : static_cast<Real>(0.0);
     
-    Real I_Xpos = (std::abs(K_x) > static_cast<Real>(1e-9)) ? m_x / K_x : static_cast<Real>(0.0);
-    Real I_Xneg = (std::abs(K_nx) > static_cast<Real>(1e-9)) ? -m_x / K_nx : static_cast<Real>(0.0);  // Negative to oppose
-    Real I_Ypos = (std::abs(K_y) > static_cast<Real>(1e-9)) ? m_y / K_y : static_cast<Real>(0.0);
-    Real I_Yneg = (std::abs(K_ny) > static_cast<Real>(1e-9)) ? -m_y / K_ny : static_cast<Real>(0.0);  // Negative to oppose
+    // Allocate body dipole to per-face currents using pre-computed reciprocals
+    // I_face = m_cmd * K_coil_inv (multiply is ~3-5x faster than divide on embedded MCU)
+    Real I_Xpos = m_x * K_x_inv;
+    Real I_Xneg = -m_x * K_nx_inv;  // Negative to oppose
+    Real I_Ypos = m_y * K_y_inv;
+    Real I_Yneg = -m_y * K_ny_inv;  // Negative to oppose
     
-    // Apply current saturation per face
-    Real I_max = Param::Actuators::Coils::I_max;
-    I_Xpos = std::max(std::min(I_Xpos, I_max), -I_max);
-    I_Xneg = std::max(std::min(I_Xneg, I_max), -I_max);
-    I_Ypos = std::max(std::min(I_Ypos, I_max), -I_max);
-    I_Yneg = std::max(std::min(I_Yneg, I_max), -I_max);
-    
+    // Apply current saturation per face (inline saturate for speed)
+    I_Xpos = (I_Xpos > I_max) ? I_max : ((I_Xpos < -I_max) ? -I_max : I_Xpos);
+    I_Xneg = (I_Xneg > I_max) ? I_max : ((I_Xneg < -I_max) ? -I_max : I_Xneg);
+    I_Ypos = (I_Ypos > I_max) ? I_max : ((I_Ypos < -I_max) ? -I_max : I_Ypos);
+    I_Yneg = (I_Yneg > I_max) ? I_max : ((I_Yneg < -I_max) ? -I_max : I_Yneg);
+
     // Pack per-face currents: [I_Xpos, I_Xneg, I_Ypos, I_Yneg]
     out.face_current(0) = I_Xpos;
     out.face_current(1) = I_Xneg;
@@ -47,10 +51,11 @@ MTQAllocator::AllocOutput MTQAllocator::allocate(const Vector3& m_body, const Ve
     // (User calibrates with Helmholtz cage sweep and updates this)
     constexpr Real B_per_amp = static_cast<Real>(1e-5);  // [T/A] placeholder
     
-    out.face_b_ref(0) = std::abs(I_Xpos) * B_per_amp;
-    out.face_b_ref(1) = std::abs(I_Xneg) * B_per_amp;
-    out.face_b_ref(2) = std::abs(I_Ypos) * B_per_amp;
-    out.face_b_ref(3) = std::abs(I_Yneg) * B_per_amp;
+    // Use absolute values for field magnitude (always positive)
+    out.face_b_ref(0) = (I_Xpos >= 0) ? I_Xpos * B_per_amp : -I_Xpos * B_per_amp;
+    out.face_b_ref(1) = (I_Xneg >= 0) ? I_Xneg * B_per_amp : -I_Xneg * B_per_amp;
+    out.face_b_ref(2) = (I_Ypos >= 0) ? I_Ypos * B_per_amp : -I_Ypos * B_per_amp;
+    out.face_b_ref(3) = (I_Yneg >= 0) ? I_Yneg * B_per_amp : -I_Yneg * B_per_amp;
     
     (void)B_measured;  // Reserved for future adaptive field estimation
     

@@ -2,7 +2,7 @@
 #define CORE_MTQ_ALLOCATOR_HPP
 
 #include "core_Parameters.hpp"
-
+#include "core_Saturate.hpp"
 /**
  * @file core_MTQAllocator.hpp
  * @brief Per-face magnetorquer current and reference field allocator

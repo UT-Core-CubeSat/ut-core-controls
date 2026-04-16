@@ -65,6 +65,11 @@ private:
 
     Param::TimeReal last_time; // Store last update time 
     bool first_update; // Flag for first call
+    
+    // RTOS Optimization: Pre-allocated workspace to avoid per-call allocations
+    // Reused across update() calls to minimize heap fragmentation and latency jitter
+    mutable Param::Vector13 workspace_meas_;   // Measurement vector workspace
+    mutable Param::Vector10 workspace_ref_;    // Reference workspace
 };
 
 } // namespace ADCS

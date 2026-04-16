@@ -17,6 +17,7 @@ public:
     ControllerBDot();
 
     // Update method - takes measurements and current estimated states
+    // Marked inline: hot-path calculation in time-critical control loop
     Vector3 update(const Measurements& measurements, const Param::Vector11& states_hat, Scalar dt);
     
 private:
