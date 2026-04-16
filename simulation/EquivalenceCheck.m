@@ -29,6 +29,23 @@ switch numCols
         tau_dist_log = data(:, 64:66)';    % 3 disturbance torque
         mode_log     = data(:, 67)';       % 1 mode
 
+    case 75
+        % Extended format with per-face MTQ data
+        data_format = 'airbearing';
+        fprintf('Detected Air Bearing format with MTQ per-face data.\n');
+
+        time_log         = data(:, 1);
+        states_log       = data(:, 2:12)';     % 11 states
+        est_log          = data(:, 13:23)';    % 11 estimates
+        ref_log          = data(:, 24:33)';    % 10 reference
+        input_log        = data(:, 34:40)';    % 7 inputs
+        meas_log         = data(:, 41:53)';    % 13 measurements
+        model_log        = data(:, 54:60)';    % 7 model states
+        tau_grav_log     = data(:, 61:63)';    % 3 gravity torque
+        tau_dist_log     = data(:, 64:66)';    % 3 disturbance torque
+        mtq_current_log  = data(:, 67:70)';    % 4 per-face MTQ currents [A]
+        mtq_b_ref_log    = data(:, 71:74)';    % 4 per-face B-field references [T]
+        mode_log         = data(:, 75)';       % 1 mode
     case 89
         data_format = 'fororbit';
         fprintf('Detected ForOrbit format.\n');
@@ -43,7 +60,7 @@ switch numCols
         mode_log   = data(:, 89)';
 
     otherwise
-        error('Unknown simulation_data.csv column count: %d. Expected 67 or 89.', numCols);
+        error('Unknown simulation_data.csv column count: %d. Expected 67, 75, or 89.', numCols);
 end
 
 switch data_format
@@ -58,6 +75,12 @@ switch data_format
 end
 
 mode_map = containers.Map({0, 1, 2}, {'off', 'detumble', 'point'});
+
+% Initialize MTQ logs if they don't exist (for backward compatibility)
+if ~exist('mtq_current_log', 'var') || isempty(mtq_current_log)
+    mtq_current_log = zeros(4, length(time_log));
+    mtq_b_ref_log = zeros(4, length(time_log));
+end
 
 figure(Param.active_figure);
 
@@ -124,6 +147,78 @@ if strcmp(data_format, 'airbearing')
     plot(time_log, pointing_error_deg);
     xlabel('Time [s]'); ylabel('Angle [deg]');
     title('Pointing Error (Body Z vs Inertial Z)');
+    grid on;
+end
+
+% ============================================================================
+% MTQ Health & EKF Analysis (if MTQ data available)
+% ============================================================================
+if exist('mtq_current_log', 'var') && ~isempty(mtq_current_log) && any(mtq_current_log(:) ~= 0)
+    figure('Name', 'MTQ Health & EKF Estimation Analysis');
+    
+    % Per-face MTQ currents
+    subplot(3,2,1);
+    plot(time_log, mtq_current_log');
+    xlabel('Time [s]'); ylabel('Current [A]');
+    title('Per-Face MTQ Currents');
+    legend('Xpos', 'Xneg', 'Ypos', 'Yneg'); grid on;
+    
+    % Per-face B-field references
+    subplot(3,2,2);
+    plot(time_log, mtq_b_ref_log');
+    xlabel('Time [s]'); ylabel('Field [T]');
+    title('Per-Face B-Field References');
+    legend('Xpos', 'Xneg', 'Ypos', 'Yneg'); grid on;
+    
+    % EKF quaternion error (estimated vs true)
+    subplot(3,2,3);
+    q_true = states_log(1:4, :);
+    q_est = est_log(1:4, :);
+    q_error_deg = zeros(1, length(time_log));
+    
+    for k = 1:length(time_log)
+        qt = q_true(:, k) / norm(q_true(:, k));
+        qe = q_est(:, k) / norm(q_est(:, k));
+        
+        % Quaternion error magnitude (from quatconj and multiply)
+        q_err = quatMultiply(quatconj(qt), qe);
+        angle_rad = 2 * acos(max(-1, min(1, abs(q_err(1)))));
+        q_error_deg(k) = rad2deg(angle_rad);
+    end
+    
+    plot(time_log, q_error_deg);
+    xlabel('Time [s]'); ylabel('Angle [deg]');
+    title('EKF Quaternion Estimation Error');
+    grid on;
+    
+    % Angular velocity estimation error
+    subplot(3,2,4);
+    omega_true = states_log(5:7, :);
+    omega_est = est_log(5:7, :);
+    omega_error = vecnorm(omega_true - omega_est);
+    
+    plot(time_log, omega_error);
+    xlabel('Time [s]'); ylabel('Error [rad/s]');
+    title('Angular Velocity Estimation Error');
+    grid on;
+    
+    % Wheel speed estimation error
+    subplot(3,2,5);
+    rw_true = states_log(8:11, :);
+    rw_est = est_log(8:11, :);
+    rw_error = vecnorm(rw_true - rw_est);
+    
+    plot(time_log, rw_error);
+    xlabel('Time [s]'); ylabel('Error [rad/s]');
+    title('Wheel Speed Estimation Error');
+    grid on;
+    
+    % Overall EKF convergence metric
+    subplot(3,2,6);
+    ekf_health = sqrt(q_error_deg'.^2 + omega_error'.^2 + rw_error'.^2);
+    plot(time_log, ekf_health);
+    xlabel('Time [s]'); ylabel('Combined Error');
+    title('EKF Overall Health Metric');
     grid on;
 end
 

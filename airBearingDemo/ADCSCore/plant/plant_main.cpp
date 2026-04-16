@@ -53,6 +53,9 @@ struct SimLogger {
                     // Disturbance Torques (6) - NEW
                     << "tau_grav_x,tau_grav_y,tau_grav_z,"
                     << "tau_dist_x,tau_dist_y,tau_dist_z,"
+                    // Per-Face MTQ Data (8): currents (A) and reference fields (T)
+                    << "I_Xpos,I_Xneg,I_Ypos,I_Yneg,"
+                    << "B_Xpos_ref,B_Xneg_ref,B_Ypos_ref,B_Yneg_ref,"
                     // Mode
                     << "mode\n";
             }
@@ -68,7 +71,9 @@ struct SimLogger {
              const Param::Vector7& model,
              const Param::Vector3& tau_grav,   // NEW
              const Param::Vector3& tau_dist,   // NEW
-             int mode)
+            const Param::Vector4& mtq_face_current,
+            const Param::Vector4& mtq_face_b_ref,
+            int mode)
     {
         std::stringstream ss;
         ss << std::fixed << std::setprecision(9) << t << ",";
@@ -85,6 +90,8 @@ struct SimLogger {
         write_vec(model, 7);
         write_vec(tau_grav, 3);   // NEW
         write_vec(tau_dist, 3);   // NEW
+        write_vec(mtq_face_current, 4);
+        write_vec(mtq_face_b_ref, 4);
         ss << mode << "\n";
 
         std::string line = ss.str();
@@ -163,6 +170,8 @@ int main() {
     Param::Vector13 measurements = Param::Vector13::Zero();
     Param::Vector3 tau_grav = Param::Vector3::Zero();    // NEW
     Param::Vector3 tau_dist = Param::Vector3::Zero();    // NEW
+    Param::Vector4 mtq_face_current = Param::Vector4::Zero();
+    Param::Vector4 mtq_face_b_ref = Param::Vector4::Zero();
 
     std::cout << "Running Simulation..." << std::endl;
 
@@ -175,7 +184,8 @@ int main() {
 
     // Initial log
     logger.log(t, states_true, states_hat, reference, tau_all, measurements, 
-               states_m, tau_grav, tau_dist, static_cast<int>(ADCS::MissionMode::SAFE));
+               states_m, tau_grav, tau_dist, mtq_face_current, mtq_face_b_ref,
+               static_cast<int>(ADCS::MissionMode::SAFE));
     while (t < t_end) {
         while (t <= t_next_plot) {
             Param::Vector11 states_dot = dynamics.getStatesDot();
@@ -202,6 +212,10 @@ int main() {
             tau_all(5) = actuators.mtq_dipole(1);
             tau_all(6) = actuators.mtq_dipole(2);
 
+            // Extract MTQ per-face data for logging
+            mtq_face_current = actuators.mtq_face_current;
+            mtq_face_b_ref = actuators.mtq_face_b_ref;
+
             dynamics.update(tau_all);
             t += dt;
         }
@@ -212,7 +226,8 @@ int main() {
         tau_dist = dynamics.getTauDisturbance();  // NEW
         ADCS::Command current_cmd = getCommand(t);
         logger.log(t, states_true, states_hat, reference, tau_all, measurements, 
-                   states_m, tau_grav, tau_dist, static_cast<int>(current_cmd.mode));
+                   states_m, tau_grav, tau_dist, mtq_face_current, mtq_face_b_ref,
+                   static_cast<int>(current_cmd.mode));
         t_next_plot = t + t_plot;
     }
 
