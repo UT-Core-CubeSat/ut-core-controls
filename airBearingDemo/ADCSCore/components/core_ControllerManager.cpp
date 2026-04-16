@@ -32,13 +32,9 @@ ControllerManager::ControlOutput ControllerManager::update(const Param::Vector11
         // NDI Controller
         auto ndi_out = NDI.update(states_hat, reference, measurements, dt);
         
-        output.tau(0) = ndi_out.tau_wheel(0);
-        output.tau(1) = ndi_out.tau_wheel(1);
-        output.tau(2) = ndi_out.tau_wheel(2);
-        output.tau(3) = ndi_out.tau_wheel(3);
-        output.tau(4) = ndi_out.tau_mtq(0);
-        output.tau(5) = ndi_out.tau_mtq(1);
-        output.tau(6) = ndi_out.tau_mtq(2);
+        // Bulk segment assignment is faster than element-by-element unpacking
+        output.tau.setSegment(0, ndi_out.tau_wheel);
+        output.tau.setSegment(4, ndi_out.tau_mtq);
         
         output.states_m = ndi_out.states_m;
 
