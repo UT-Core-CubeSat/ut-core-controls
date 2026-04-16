@@ -18,6 +18,7 @@ Set-Location simulation\build
 cmake ..
 cmake --build . --config Debug
 .\Debug\PlantSim.exe
+Set-Location ..
 ```
 
 ### For Orbit Simulation
