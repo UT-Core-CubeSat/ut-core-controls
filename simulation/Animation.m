@@ -229,11 +229,11 @@ classdef Animation < handle
                         for i = 1:length(self.ref_quiver_handles)
                             set(self.ref_quiver_handles(i), 'Visible', 'off');
                         end
-                    case 'detumble'
+                    case 'safe'
                         for i = 1:length(self.ref_quiver_handles)
                             set(self.ref_quiver_handles(i), 'Visible', 'on', 'Color', [1 0.5 0]);
                         end
-                    case 'point'
+                    case {'bearing', 'point'}
                         colX = self.palette_x; colY = self.palette_y; colZ = self.palette_z;
                         col = [colX; colY; colZ];
                         for i = 1:length(self.ref_quiver_handles)
@@ -289,13 +289,13 @@ classdef Animation < handle
             Xbot = Xtop; Ybot = Xtop; Zbot = Xtop;
 
             for i = 1:n_wheels
-                r_top = r_top_all(:,i);
-                r_bot = r_bottom_all(:,i);
-                v_axis = r_top - r_bot;
+                r_top_i = r_top_all(:,i);
+                r_bot_i = r_bottom_all(:,i);
+                v_axis = r_top_i - r_bot_i;
                 L = norm(v_axis);
                 if L < 1e-9, continue; end
                 s_hat = v_axis / L;
-                mid   = (r_top + r_bot)/2;
+                mid   = (r_top_i + r_bot_i)/2;
 
                 Zloc = (Zc - 0.5) * L;
 

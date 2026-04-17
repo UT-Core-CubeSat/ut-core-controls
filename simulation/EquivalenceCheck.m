@@ -50,6 +50,7 @@ switch numCols
         tau_grav_log = data(:, 61:63)';    % 3 gravity torque
         tau_dist_log = data(:, 64:66)';    % 3 disturbance torque
         mode_log     = data(:, 67)';       % 1 mode
+        innov_log    = [];                 % No innovations in this format
 
     case 75
         % Extended format with per-face MTQ data
@@ -68,21 +69,33 @@ switch numCols
         mtq_current_log  = data(:, 67:70)';    % 4 per-face MTQ currents [A]
         mtq_b_ref_log    = data(:, 71:74)';    % 4 per-face B-field references [T]
         mode_log         = data(:, 75)';       % 1 mode
-    case 89
-        data_format = 'fororbit';
-        fprintf('Detected ForOrbit format.\n');
+        innov_log        = [];                 % No innovations in this format
+        
+    case 83
+        % Extended format with innovations (accel and mag)
+        data_format = 'airbearing';
+        fprintf('Detected Air Bearing format with innovation diagnostics.\n');
 
-        time_log   = data(:, 1);
-        states_log = data(:, 2:18)';
-        est_log    = data(:, 19:35)';
-        ref_log    = data(:, 36:45)';
-        input_log  = data(:, 46:52)';
-        meas_log   = data(:, 53:81)';
-        model_log  = data(:, 82:88)';
-        mode_log   = data(:, 89)';
-
+        time_log         = data(:, 1);
+        states_log       = data(:, 2:12)';     % 11 states
+        est_log          = data(:, 13:23)';    % 11 estimates
+        ref_log          = data(:, 24:33)';    % 10 reference
+        input_log        = data(:, 34:40)';    % 7 inputs
+        meas_log         = data(:, 41:53)';    % 13 measurements
+        model_log        = data(:, 54:60)';    % 7 model states
+        tau_grav_log     = data(:, 61:63)';    % 3 gravity torque
+        tau_dist_log     = data(:, 64:66)';    % 3 disturbance torque
+        mtq_current_log  = data(:, 67:70)';    % 4 per-face MTQ currents [A]
+        mtq_b_ref_log    = data(:, 71:74)';    % 4 per-face B-field references [T]
+        accel_innov_log  = data(:, 75:77)';    % 3 accel innovation components
+        accel_innov_norm = data(:, 78);        % 1 accel innovation norm
+        mag_innov_log    = data(:, 79:81)';    % 3 mag innovation components
+        mag_innov_norm   = data(:, 82);        % 1 mag innovation norm
+        mode_log         = data(:, 83)';       % 1 mode
+        innov_log        = [accel_innov_log; accel_innov_norm'; mag_innov_log; mag_innov_norm'];
+        
     otherwise
-        error('Unknown simulation_data.csv column count: %d. Expected 67, 75, or 89.', numCols);
+        error('Unknown simulation_data.csv column count: %d. Expected 67, 75, or 83.', numCols);
 end
 
 switch data_format
@@ -96,7 +109,12 @@ switch data_format
         plotter   = orbit_Plotter(Param);
 end
 
-mode_map = containers.Map({0, 1, 2}, {'off', 'detumble', 'point'});
+% Initialize innovation log for backward compatibility
+if ~exist('innov_log', 'var') || isempty(innov_log)
+    innov_log = [];
+end
+
+mode_map = containers.Map({0, 1, 2}, {'off', 'safe', 'bearing'});
 
 % Initialize MTQ logs if they don't exist (for backward compatibility)
 if ~exist('mtq_current_log', 'var') || isempty(mtq_current_log)
@@ -241,6 +259,51 @@ if exist('mtq_current_log', 'var') && ~isempty(mtq_current_log) && any(mtq_curre
     plot(time_log, ekf_health);
     xlabel('Time [s]'); ylabel('Combined Error');
     title('EKF Overall Health Metric');
+    grid on;
+end
+
+% ============================================================================
+% Innovation Diagnostics (if available)
+% ============================================================================
+if ~isempty(innov_log) && any(innov_log(:) ~= 0)
+    figure('Name', 'EKF Innovation Diagnostics');
+    
+    % Extract innovation data
+    accel_innov_x = innov_log(1, :);
+    accel_innov_y = innov_log(2, :);
+    accel_innov_z = innov_log(3, :);
+    accel_innov_norm_plot = innov_log(4, :);
+    mag_innov_x = innov_log(5, :);
+    mag_innov_y = innov_log(6, :);
+    mag_innov_z = innov_log(7, :);
+    mag_innov_norm_plot = innov_log(8, :);
+    
+    % Accel innovation components
+    subplot(2,2,1);
+    plot(time_log, [accel_innov_x; accel_innov_y; accel_innov_z]');
+    xlabel('Time [s]'); ylabel('Innovation');
+    title('Accel Innovation Components');
+    legend('x', 'y', 'z'); grid on;
+    
+    % Accel innovation norm
+    subplot(2,2,2);
+    plot(time_log, accel_innov_norm_plot);
+    xlabel('Time [s]'); ylabel('Norm');
+    title('Accel Innovation Norm');
+    grid on;
+    
+    % Mag innovation components
+    subplot(2,2,3);
+    plot(time_log, [mag_innov_x; mag_innov_y; mag_innov_z]');
+    xlabel('Time [s]'); ylabel('Innovation');
+    title('Mag Innovation Components');
+    legend('x', 'y', 'z'); grid on;
+    
+    % Mag innovation norm
+    subplot(2,2,4);
+    plot(time_log, mag_innov_norm_plot);
+    xlabel('Time [s]'); ylabel('Norm');
+    title('Mag Innovation Norm');
     grid on;
 end
 

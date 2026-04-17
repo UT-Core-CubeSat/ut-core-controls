@@ -200,10 +200,10 @@ classdef Plotter < handle
             measurements(4:6)   = rad2deg(measurements(4:6));
             measurements(10:13) = 60/(2*pi)*measurements(10:13);
             switch lower(mode)
-                case 'point',    refColor = [0 0.7 0];
-                case 'detumble', refColor = [1 0.5 0];
-                case 'off',      refColor = [0.5 0.5 0.5];
-                otherwise,       refColor = [0 0.7 0];
+                case {'bearing', 'point'}, refColor = [0 0.7 0];
+                case 'safe',               refColor = [1 0.5 0];
+                case 'off',                refColor = [0.5 0.5 0.5];
+                otherwise,                 refColor = [0 0.7 0];
             end
 
             self.time_history(self.index)    = t;

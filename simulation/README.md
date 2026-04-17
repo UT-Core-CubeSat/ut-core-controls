@@ -20,6 +20,12 @@ cmake --build . --config Debug
 .\Debug\PlantSim.exe
 Set-Location ..
 ```
+### For small changes 
+```powershell
+Set-Location C:\Users\arick\Desktop\ut-core-controls\simulation\build
+cmake --build . --config Debug
+.\Debug\PlantSim.exe
+```
 
 ### For Orbit Simulation
 ```powershell
