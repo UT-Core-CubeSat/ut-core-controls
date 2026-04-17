@@ -307,6 +307,172 @@ if ~isempty(innov_log) && any(innov_log(:) ~= 0)
     grid on;
 end
 
+% ============================================================================
+% MTQ Desaturation Effectiveness (Air Bearing)
+% ============================================================================
+if strcmp(data_format, 'airbearing')
+    if isfield(Param, 'S') && isfield(Param, 'I_wheel') && isfield(Param, 'm_max')
+        S = Param.S;
+        I_wheel = Param.I_wheel;
+        m_max = Param.m_max;
+
+        % True wheel momentum in body frame: h_w = S * (I_wheel * omega_w)
+        omega_w_true = states_log(8:11, :);                % [rad/s]
+        h_w = S * (I_wheel * omega_w_true);                % [N*m*s]
+
+        % Measured magnetic field in body frame (what controller has available)
+        B_body = meas_log(7:9, :);                         % [T]
+        B_norm = vecnorm(B_body, 2, 1);
+        B_hat = zeros(size(B_body));
+        valid_B = B_norm > 1e-10;
+        B_hat(:, valid_B) = B_body(:, valid_B) ./ B_norm(valid_B);
+
+        % Decompose wheel momentum into uncontrollable (parallel to B)
+        % and controllable (perpendicular to B) components.
+        h_par_scalar = sum(h_w .* B_hat, 1);
+        h_par = B_hat .* h_par_scalar;
+        h_perp = h_w - h_par;
+
+        h_norm = vecnorm(h_w, 2, 1);
+        h_par_norm = vecnorm(h_par, 2, 1);
+        h_perp_norm = vecnorm(h_perp, 2, 1);
+
+        % MTQ command and expected torque authority
+        m_cmd = input_log(5:7, :);                         % [A*m^2]
+        m_cmd_norm = vecnorm(m_cmd, 2, 1);
+        tau_mtq = cross(m_cmd.', B_body.').';              % [N*m]
+        tau_mtq_norm = vecnorm(tau_mtq, 2, 1);
+        tau_mtq_max = m_max .* B_norm;                     % Max |m x B| with |m| <= m_max
+        tau_util = tau_mtq_norm ./ max(tau_mtq_max, 1e-12);
+        tau_util = min(max(tau_util, 0), 1);
+
+        % Optional smoothing for slope visibility (roughly 1 second window)
+        dt_med = median(diff(time_log));
+        win = max(3, round(1 / max(dt_med, 1e-3)));
+        h_perp_smooth = movmean(h_perp_norm, win);
+        dh_perp_dt = gradient(h_perp_smooth, time_log');
+
+        actionable_frac = h_perp_norm ./ max(h_norm, 1e-12);
+        actionable_frac = min(max(actionable_frac, 0), 1);
+
+        bearing_mask = (mode_log == 2);
+        bearing_idx = find(bearing_mask);
+        mtq_active_mask = m_cmd_norm >= 0.1 * m_max;
+        active_mask = bearing_mask & mtq_active_mask;
+
+        figure('Name', 'MTQ Desaturation Effectiveness');
+
+        subplot(2,2,1);
+        plot(time_log, h_norm, 'k', 'LineWidth', 1.2); hold on;
+        plot(time_log, h_perp_norm, 'b', 'LineWidth', 1.2);
+        plot(time_log, h_par_norm, 'r', 'LineWidth', 1.2);
+        xlabel('Time [s]'); ylabel('|h| [N*m*s]');
+        title('Wheel Momentum Decomposition');
+        legend('|h|', '|h_{\perp B}| (MTQ-controllable)', '|h_{\parallel B}| (MTQ-limited)', 'Location', 'best');
+        grid on;
+
+        subplot(2,2,2);
+        yyaxis left;
+        plot(time_log, actionable_frac, 'm', 'LineWidth', 1.2);
+        ylabel('Controllable Fraction');
+        ylim([0 1]);
+        yyaxis right;
+        plot(time_log, B_norm, 'g', 'LineWidth', 1.0);
+        ylabel('|B| [T]');
+        xlabel('Time [s]');
+        title('Available MTQ Leverage');
+        legend('|h_{\perp B}| / |h|', '|B|', 'Location', 'best');
+        grid on;
+
+        subplot(2,2,3);
+        yyaxis left;
+        plot(time_log, m_cmd_norm, 'k', 'LineWidth', 1.2);
+        ylabel('|m_{cmd}| [A*m^2]');
+        ylim([0, max(m_max * 1.05, 1e-6)]);
+        yyaxis right;
+        plot(time_log, tau_util, 'c', 'LineWidth', 1.2);
+        ylabel('MTQ Torque Utilization');
+        ylim([0 1]);
+        xlabel('Time [s]');
+        title('MTQ Command and Authority Use');
+        legend('|m_{cmd}|', '|m x B| / (m_{max}|B|)', 'Location', 'best');
+        grid on;
+
+        subplot(2,2,4);
+        plot(time_log, h_perp_smooth, 'b', 'LineWidth', 1.2); hold on;
+        yyaxis right;
+        plot(time_log, dh_perp_dt, 'r', 'LineWidth', 1.0);
+        ylabel('d|h_{\perp B}|/dt [N*m*s^2]');
+        yyaxis left;
+        ylabel('|h_{\perp B}| (smoothed) [N*m*s]');
+        xlabel('Time [s]');
+        title('Controllable Momentum Trend');
+        legend('|h_{\perp B}|', 'd|h_{\perp B}|/dt', 'Location', 'best');
+        grid on;
+
+        if ~isempty(bearing_idx)
+            t_row = time_log';
+            t_b_start = t_row(bearing_idx(1));
+            t_b_end = t_row(bearing_idx(end));
+
+            start_win = 5.0;  % seconds after BEARING entry
+            end_win = 10.0;   % final seconds in BEARING
+
+            start_mask = bearing_mask & (t_row >= t_b_start) & (t_row <= (t_b_start + start_win));
+            end_mask = bearing_mask & (t_row >= (t_b_end - end_win)) & (t_row <= t_b_end);
+
+            % Fallback for short bearing windows
+            if nnz(start_mask) < 3
+                start_mask = bearing_mask;
+            end
+            if nnz(end_mask) < 3
+                end_mask = bearing_mask;
+            end
+
+            h0 = median(h_norm(start_mask));
+            hf = median(h_norm(end_mask));
+            hperp0 = median(h_perp_norm(start_mask));
+            hperpf = median(h_perp_norm(end_mask));
+            hpar0 = median(h_par_norm(start_mask));
+            hparf = median(h_par_norm(end_mask));
+
+            red_total = 100 * (h0 - hf) / max(h0, 1e-12);
+            red_perp = 100 * (hperp0 - hperpf) / max(hperp0, 1e-12);
+            red_par = 100 * (hpar0 - hparf) / max(hpar0, 1e-12);
+
+            if any(active_mask)
+                mean_slope_active = mean(dh_perp_dt(active_mask));
+                frac_decreasing_active = 100 * mean(dh_perp_dt(active_mask) < 0);
+                mean_tau_util_active = 100 * mean(tau_util(active_mask));
+            else
+                mean_slope_active = NaN;
+                frac_decreasing_active = NaN;
+                mean_tau_util_active = NaN;
+            end
+
+            fprintf('\n=== MTQ Desaturation Effectiveness (BEARING) ===\n');
+            fprintf('BEARING window: %.2f s to %.2f s (%.2f s)\n', t_b_start, t_b_end, t_b_end - t_b_start);
+            fprintf('|h| median start/end:      %.3e -> %.3e N*m*s  (reduction %.1f%%)\n', h0, hf, red_total);
+            fprintf('|h_perp| start/end:        %.3e -> %.3e N*m*s  (reduction %.1f%%)\n', hperp0, hperpf, red_perp);
+            fprintf('|h_parallel| start/end:    %.3e -> %.3e N*m*s  (reduction %.1f%%)\n', hpar0, hparf, red_par);
+            fprintf('Mean controllable fraction in BEARING: %.1f%%\n', 100 * mean(actionable_frac(bearing_mask)));
+
+            if ~isnan(mean_slope_active)
+                fprintf('When MTQ active in BEARING:\n');
+                fprintf('  mean d|h_perp|/dt = %.3e N*m*s^2\n', mean_slope_active);
+                fprintf('  time with decreasing |h_perp| = %.1f%%\n', frac_decreasing_active);
+                fprintf('  mean MTQ torque utilization = %.1f%% of max m_max|B|\n', mean_tau_util_active);
+            else
+                fprintf('MTQ-active BEARING samples were not detected with current threshold.\n');
+            end
+        else
+            fprintf('\nNo BEARING samples found in mode log. Skipping BEARING-only desat summary.\n');
+        end
+    else
+        fprintf('\nMissing Param fields (S, I_wheel, or m_max). Skipping desaturation effectiveness analysis.\n');
+    end
+end
+
 function v_rot = quatrotate(q, v)
     q = q(:);
     q = q / norm(q);
