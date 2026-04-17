@@ -22,7 +22,11 @@ ControllerNDI::ControllerNDI()
     m(Param::Spacecraft::mass),
     x_m(StateVector::Zero()),
     is_saturated(false),
-    accumulated_time(static_cast<Param::Real>(0.0))
+    accumulated_time(static_cast<Param::Real>(0.0)),
+    desat_active(false),
+    desat_entry_timer(static_cast<Param::Real>(0.0)),
+    desat_exit_timer(static_cast<Param::Real>(0.0)),
+    desat_momentum_target(Vector3::Zero())
 {
     // Calculate gains 
     calculate_gains(Param::Controller::t_s_model,
@@ -126,11 +130,82 @@ ControllerNDI::NDIOutput ControllerNDI::update(const Param::Vector11& states,
     // Get desat torque
     Vector3 h_w = S * (I_wheel * omega_w);
     Vector3 B_meas = measurements.segment<3>(6);
-    DesatOutput desat_out = wheel_desaturate(B_meas, h_w);
+
+    // Desaturation state machine:
+    // Enter based on wheel saturation/high momentum (with mild rate guard), then
+    // unload slowly while reducing wheel-vs-MTQ fighting.
+    Scalar body_rate_norm = omega.norm();
+    Scalar wheel_momentum_norm = h_w.norm();
+
+    Scalar max_wheel_speed = static_cast<Scalar>(0.0);
+    for (int i = 0; i < 4; ++i) {
+        Scalar abs_speed = std::abs(omega_w(i));
+        if (abs_speed > max_wheel_speed) {
+            max_wheel_speed = abs_speed;
+        }
+    }
+
+    bool rate_ready = body_rate_norm <= Param::Controller::Desat::entry_rate_norm;
+    bool enter_by_speed = max_wheel_speed >= (Param::Controller::Desat::enter_wheel_speed_ratio * omega_w_max);
+    bool enter_by_momentum = wheel_momentum_norm >= Param::Controller::Desat::enter_momentum_norm;
+    bool desat_enter_condition = rate_ready && (enter_by_speed || enter_by_momentum);
+
+    bool exit_by_speed = max_wheel_speed <= (Param::Controller::Desat::exit_wheel_speed_ratio * omega_w_max);
+    bool exit_by_momentum = wheel_momentum_norm <= Param::Controller::Desat::exit_momentum_norm;
+    bool desat_exit_condition = exit_by_speed && exit_by_momentum;
+
+    if (desat_active) {
+        if (desat_exit_condition) {
+            desat_exit_timer += dt;
+            if (desat_exit_timer >= Param::Controller::Desat::exit_hold_time) {
+                desat_active = false;
+                desat_entry_timer = static_cast<Param::Real>(0.0);
+                desat_exit_timer = static_cast<Param::Real>(0.0);
+                desat_momentum_target = Vector3::Zero();
+            }
+        } else {
+            desat_exit_timer = static_cast<Param::Real>(0.0);
+        }
+    } else {
+        if (desat_enter_condition) {
+            desat_entry_timer += dt;
+            if (desat_entry_timer >= Param::Controller::Desat::enter_hold_time) {
+                desat_active = true;
+                desat_entry_timer = static_cast<Param::Real>(0.0);
+                desat_exit_timer = static_cast<Param::Real>(0.0);
+                desat_momentum_target = h_w;
+            }
+        } else {
+            desat_entry_timer = static_cast<Param::Real>(0.0);
+        }
+    }
+
+    Scalar mtq_comp_scale = static_cast<Scalar>(1.0);
+    Scalar attitude_scale = static_cast<Scalar>(1.0);
+    Scalar null_scale = static_cast<Scalar>(1.0);
+
+    DesatOutput desat_out{Vector3::Zero(), Vector3::Zero()};
+    if (desat_active) {
+        Scalar alpha = dt / (Param::Controller::Desat::filter_tau + dt);
+        desat_momentum_target = (static_cast<Param::Real>(1.0) - alpha) * desat_momentum_target + alpha * h_w;
+
+        desat_out = wheel_desaturate(B_meas, desat_momentum_target);
+        desat_out.m_cmd *= Param::Controller::Desat::mtq_dipole_scale;
+        desat_out.m_cmd = saturateSymmetric(desat_out.m_cmd, m_max);
+        desat_out.tau_mtq_expected = desat_out.m_cmd.cross(B_meas);
+
+        mtq_comp_scale = Param::Controller::Desat::wheel_mtq_comp_scale;
+        attitude_scale = Param::Controller::Desat::wheel_attitude_scale;
+        null_scale = static_cast<Scalar>(0.0);
+    }
+
     Vector3 tau_mtq = desat_out.tau_mtq_expected;
 
     // Convert to wheel torques, plus desat 
-    Vector4 tau_tilde = allocateActuators(tau_NDI, tau_mtq, omega_w);
+    Vector4 tau_tilde = allocateActuators(tau_NDI, tau_mtq, omega_w,
+                                          mtq_comp_scale,
+                                          attitude_scale,
+                                          null_scale);
 
     // Feed forward compensation for internal wheel dynamics
     Vector4 tau_ff = Vector4::Zero();
@@ -303,16 +378,19 @@ ControllerNDI::ToolBoxOutput ControllerNDI::compute_BP_Toolbox(const StateVector
 
 ControllerNDI::Vector4 ControllerNDI::allocateActuators(const Param::Vector3& tau_req,
                                            const Param::Vector3& tau_mtq_expected, 
-                                           const Param::Vector4& omega_w) 
+                                           const Param::Vector4& omega_w,
+                                           Scalar mtq_comp_scale,
+                                           Scalar attitude_scale,
+                                           Scalar null_scale) 
 {
     // Allocate torques to reaction wheels, considering desaturation torque from magnetorquers. 
-    Vector3 tau_to_wheels = tau_mtq_expected - tau_req;
+    Vector3 tau_to_wheels = (mtq_comp_scale * tau_mtq_expected) - (attitude_scale * tau_req);
     Vector4 tau_nom = S_pseudo * tau_to_wheels;
 
     Vector4 omega_avg = Vector4::Constant(omega_w.mean());
     Vector4 omega_err = omega_avg - omega_w;
 
-    Vector4 tau_null = k_null * (N * omega_err);
+    Vector4 tau_null = (null_scale * k_null) * (N * omega_err);
 
     return tau_nom + tau_null;
 }

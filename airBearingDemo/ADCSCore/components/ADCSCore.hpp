@@ -9,14 +9,14 @@ namespace ADCS {
 
 // COMMAND INTERFACE (What CDH/Ground sends to ADCS)
 enum class MissionMode {
-    SAFE,      // Controllers OFF
-    DETUMBLE,  // B-dot active
-    POINT      // NDI active
+    OFF,       // No control
+    SAFE,      // B-dot active
+    BEARING    // NDI attitude hold + wheel desat
 };
 
 struct Command {
     MissionMode mode;
-    Command() : mode(MissionMode::POINT) {}
+    Command() : mode(MissionMode::BEARING) {}
 };
 
 // SENSOR INTERFACE (What CAN provides from sensors)
@@ -46,6 +46,12 @@ struct AdcsOutput {
     Param::Vector10 reference;   // Reference trajectory
     Param::Vector7 states_m;     // Model states from controller
     Param::Vector11 states_hat;  // Full estimated state
+    
+    // Innovation diagnostics (for tuning)
+    Math::Vec<3> accel_innovation;
+    Math::Real accel_innovation_norm;
+    Math::Vec<3> mag_innovation;
+    Math::Real mag_innovation_norm;
 };
 
 // UT-CORE-ADCS CLASS (The "Black Box")
@@ -70,6 +76,9 @@ private:
     // Reused across update() calls to minimize heap fragmentation and latency jitter
     mutable Param::Vector13 workspace_meas_;   // Measurement vector workspace
     mutable Param::Vector10 workspace_ref_;    // Reference workspace
+
+    // BEARING mode only arms after rates are sufficiently low.
+    bool bearing_mode_armed;
 };
 
 } // namespace ADCS

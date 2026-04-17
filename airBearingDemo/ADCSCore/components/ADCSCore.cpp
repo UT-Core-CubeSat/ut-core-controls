@@ -1,10 +1,12 @@
 #include "ADCSCore.hpp"
+#include <cmath>
 
 namespace ADCS {
 
 Core::Core()
     : observer_(), controller_(), first_update(true), last_time(static_cast<Param::TimeReal>(0.0)),
-      workspace_meas_(Param::Vector13::Zero()), workspace_ref_(Param::Vector10::Zero())
+    workspace_meas_(Param::Vector13::Zero()), workspace_ref_(Param::Vector10::Zero()),
+    bearing_mode_armed(false)
 {
 }
 
@@ -39,11 +41,26 @@ AdcsOutput Core::update(const SensorData& sensors, const Command& command)
     workspace_ref_ = Param::Vector10::Zero();
     workspace_ref_(0) = 1; // unit quaternion, no rotation
 
+    if (command.mode != MissionMode::BEARING) {
+        bearing_mode_armed = false;
+    }
+
     Param::PointingMode mode = Param::PointingMode::POINT;
-    if (command.mode == MissionMode::SAFE) {
+    if (command.mode == MissionMode::OFF) {
         mode = Param::PointingMode::OFF;
-    } else if (command.mode == MissionMode::DETUMBLE) {
+    } else if (command.mode == MissionMode::SAFE) {
         mode = Param::PointingMode::DETUMBLE;
+    } else if (command.mode == MissionMode::BEARING) {
+        if (!bearing_mode_armed) {
+            Param::Real w_thresh = Param::Controller::bearing_entry_axis_rate_threshold;
+            bool rates_ready = (std::abs(sensors.gyro(0)) <= w_thresh) &&
+                               (std::abs(sensors.gyro(1)) <= w_thresh) &&
+                               (std::abs(sensors.gyro(2)) <= w_thresh);
+            if (rates_ready) {
+                bearing_mode_armed = true;
+            }
+        }
+        mode = bearing_mode_armed ? Param::PointingMode::POINT : Param::PointingMode::DETUMBLE;
     }
 
     // 4. Run controller
@@ -56,7 +73,13 @@ AdcsOutput Core::update(const SensorData& sensors, const Command& command)
     out.attitude_est = states_hat.segment<4>(6);
     out.rate_est = states_hat.segment<3>(10);
     out.estimator_valid = !states_hat.hasNaN();
-    out.current_mode = command.mode;
+    if (mode == Param::PointingMode::OFF) {
+        out.current_mode = MissionMode::OFF;
+    } else if (mode == Param::PointingMode::DETUMBLE) {
+        out.current_mode = MissionMode::SAFE;
+    } else {
+        out.current_mode = MissionMode::BEARING;
+    }
 
     // 6. Allocate body dipole to per-face currents and reference fields (black-box derivation)
     // Software engineer receives these ready-to-use without understanding control law
@@ -68,6 +91,12 @@ AdcsOutput Core::update(const SensorData& sensors, const Command& command)
     out.reference = workspace_ref_; 
     out.states_m = ctrl_out.states_m;
     out.states_hat = states_hat;
+    
+    // Innovation diagnostics for tuning
+    out.accel_innovation = observer_.getLastAccelInnovation();
+    out.accel_innovation_norm = observer_.getLastAccelInnovationNorm();
+    out.mag_innovation = observer_.getLastMagInnovation();
+    out.mag_innovation_norm = observer_.getLastMagInnovationNorm();
 
     return out;
 }
@@ -83,6 +112,7 @@ void Core::reset() {
     controller_ = ControllerManager();
     first_update = true;
     last_time = static_cast<Param::TimeReal>(0.0);
+    bearing_mode_armed = false;
 }
 
 } // namespace ADCS

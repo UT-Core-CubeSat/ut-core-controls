@@ -39,7 +39,7 @@ namespace Param {
 
     namespace Apparatus {
         // Controllers estimate 
-        constexpr Real h_cg = static_cast<Real>(0.005); // [m] CG offset from air bearing pivot
+        constexpr Real h_cg = static_cast<Real>(-0.005); // [m] CG offset from air bearing pivot
     }
 
 
@@ -151,6 +151,9 @@ namespace Param {
         constexpr Real t_s_model = static_cast<Real>(6);
         constexpr Real zeta_model = static_cast<Real>(0.85);
         constexpr Real lambda_min_model = static_cast<Real>(0.1);
+
+        // BEARING entry guard: only hand over to NDI once rates are calm.
+        constexpr Real bearing_entry_axis_rate_threshold = static_cast<Real>(1.0) * deg2rad;
         
         // B-Dot gains (not used for air bearing, but kept for completeness)
         constexpr Real K_Bdot = static_cast<Real>(100000);
@@ -174,6 +177,21 @@ namespace Param {
             
             // Feed-forward gain (tune for model mismatch robustness)
             constexpr Real ff_gain = static_cast<Real>(1.0);      // Scale factor [0, 1]
+        }
+
+        // Priority MTQ desaturation scheduler for BEARING mode
+        namespace Desat {
+            constexpr Real entry_rate_norm = static_cast<Real>(5.0) * deg2rad;        // [rad/s]
+            constexpr Real enter_wheel_speed_ratio = static_cast<Real>(0.90);          // [ ] of omega_w_max
+            constexpr Real exit_wheel_speed_ratio = static_cast<Real>(0.70);           // [ ] of omega_w_max
+            constexpr Real enter_momentum_norm = static_cast<Real>(8e-4);              // [N*m*s]
+            constexpr Real exit_momentum_norm = static_cast<Real>(3e-4);               // [N*m*s]
+            constexpr Real enter_hold_time = static_cast<Real>(0.5);                   // [s]
+            constexpr Real exit_hold_time = static_cast<Real>(2.0);                    // [s]
+            constexpr Real filter_tau = static_cast<Real>(25.0);                       // [s]
+            constexpr Real mtq_dipole_scale = static_cast<Real>(0.35);                 // [ ] slow unloading
+            constexpr Real wheel_attitude_scale = static_cast<Real>(0.35);             // [ ] soften wheel fight
+            constexpr Real wheel_mtq_comp_scale = static_cast<Real>(0.15);             // [ ] partial MTQ cancellation
         }
     }
 
@@ -206,14 +224,14 @@ namespace Param {
 
             // Gyro bias random walk sigma [deg/s]
             inline const Vector3 sigma_bias_walk_deg_s = Vector3{
-                static_cast<Real>(0.002), static_cast<Real>(0.002), static_cast<Real>(0.002)};
+                static_cast<Real>(0.001), static_cast<Real>(0.001), static_cast<Real>(0.001)};
 
             // Gyro bias correlation time [s]
-            constexpr Real tau_bias = static_cast<Real>(1800.0);
+            constexpr Real tau_bias = static_cast<Real>(3600.0);
 
             // Initial covariance sigmas
-            constexpr Real p0_angle_sigma_deg = static_cast<Real>(5.0); // 5 
-            constexpr Real p0_bias_sigma_deg_s = static_cast<Real>(0.1); // 0.1
+            constexpr Real p0_angle_sigma_deg = static_cast<Real>(8.0); // 5
+            constexpr Real p0_bias_sigma_deg_s = static_cast<Real>(0.3); // 0.1
 
             // Star tracker/QUEST settings
             constexpr Real sigma_star_arcsec = static_cast<Real>(100.0); // 100
@@ -222,8 +240,8 @@ namespace Param {
             constexpr Real T_quest = static_cast<Real>(0.5); // 0.5
 
             // MEKF vector measurement covariance (unit-vector residual variance)
-            constexpr Real R_accel_var = static_cast<Real>(1e-4); // 1e-4
-            constexpr Real R_mag_var = static_cast<Real>(1e-2); // 1e-3
+            constexpr Real R_accel_var = static_cast<Real>(5e-6); // 1e-4
+            constexpr Real R_mag_var = static_cast<Real>(2e-4); // 1e-3
 
             // CSS parameter for sun vector synthesis
             constexpr Real I_max = static_cast<Real>(10e-3); // 10e-3

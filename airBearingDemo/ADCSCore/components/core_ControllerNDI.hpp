@@ -53,7 +53,10 @@ private:
                                      bool is_outer_loop); 
     Param::Vector4 allocateActuators(const Param::Vector3& tau_req,
                                       const Param::Vector3& tau_mtq_expected, 
-                                      const Param::Vector4& omega_w);
+                                      const Param::Vector4& omega_w,
+                                      Scalar mtq_comp_scale,
+                                      Scalar attitude_scale,
+                                      Scalar null_scale);
     struct DesatOutput {
         Param::Vector3 m_cmd;
         Param::Vector3 tau_mtq_expected;
@@ -106,6 +109,12 @@ private:
 
     // Feed-forward state tracking 
     Param::Real accumulated_time;
+
+    // Desaturation scheduler state
+    bool desat_active;
+    Param::Real desat_entry_timer;
+    Param::Real desat_exit_timer;
+    Param::Vector3 desat_momentum_target;
 };
 
 #endif // CORE_CONTROLLERNDI_HPP

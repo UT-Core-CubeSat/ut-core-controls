@@ -56,6 +56,9 @@ struct SimLogger {
                     // Per-Face MTQ Data (8): currents (A) and reference fields (T)
                     << "I_Xpos,I_Xneg,I_Ypos,I_Yneg,"
                     << "B_Xpos_ref,B_Xneg_ref,B_Ypos_ref,B_Yneg_ref,"
+                    // Innovation Diagnostics (8): accel and mag residuals
+                    << "accel_innov_x,accel_innov_y,accel_innov_z,accel_innov_norm,"
+                    << "mag_innov_x,mag_innov_y,mag_innov_z,mag_innov_norm,"
                     // Mode
                     << "mode\n";
             }
@@ -73,6 +76,10 @@ struct SimLogger {
              const Param::Vector3& tau_dist,   // NEW
             const Param::Vector4& mtq_face_current,
             const Param::Vector4& mtq_face_b_ref,
+            const Param::Vector3& accel_innov,
+            Real accel_innov_norm,
+            const Param::Vector3& mag_innov,
+            Real mag_innov_norm,
             int mode)
     {
         std::stringstream ss;
@@ -92,6 +99,11 @@ struct SimLogger {
         write_vec(tau_dist, 3);   // NEW
         write_vec(mtq_face_current, 4);
         write_vec(mtq_face_b_ref, 4);
+        // Innovation diagnostics
+        write_vec(accel_innov, 3);
+        ss << accel_innov_norm << ",";
+        write_vec(mag_innov, 3);
+        ss << mag_innov_norm << ",";
         ss << mode << "\n";
 
         std::string line = ss.str();
@@ -172,20 +184,32 @@ int main() {
     Param::Vector3 tau_dist = Param::Vector3::Zero();    // NEW
     Param::Vector4 mtq_face_current = Param::Vector4::Zero();
     Param::Vector4 mtq_face_b_ref = Param::Vector4::Zero();
+    Param::Vector3 accel_innov = Param::Vector3::Zero();
+    Real accel_innov_norm = static_cast<Real>(0.0);
+    Param::Vector3 mag_innov = Param::Vector3::Zero();
+    Real mag_innov_norm = static_cast<Real>(0.0);
+    ADCS::MissionMode active_mode = ADCS::MissionMode::OFF;
 
     std::cout << "Running Simulation..." << std::endl;
 
     auto getCommand = [](Real t) {
         ADCS::Command cmd;
-        // Brief SAFE window for startup, then detumble for the test.
-        cmd.mode = (t < static_cast<Real>(2.0)) ? ADCS::MissionMode::SAFE : ADCS::MissionMode::DETUMBLE;
+        // Demo sequence: OFF for startup, SAFE for B-dot detumble, then BEARING for wheel hold.
+        if (t < static_cast<Real>(0.5)) {
+            cmd.mode = ADCS::MissionMode::OFF;
+        } else if (t < static_cast<Real>(60.0)) {
+            cmd.mode = ADCS::MissionMode::SAFE;
+        } else {
+            cmd.mode = ADCS::MissionMode::BEARING;
+        }
         return cmd;
     };
 
     // Initial log
     logger.log(t, states_true, states_hat, reference, tau_all, measurements, 
                states_m, tau_grav, tau_dist, mtq_face_current, mtq_face_b_ref,
-               static_cast<int>(ADCS::MissionMode::SAFE));
+               accel_innov, accel_innov_norm, mag_innov, mag_innov_norm,
+               static_cast<int>(ADCS::MissionMode::OFF));
     while (t < t_end) {
         while (t <= t_next_plot) {
             Param::Vector11 states_dot = dynamics.getStatesDot();
@@ -197,6 +221,7 @@ int main() {
 
             // Call Core
             ADCS::AdcsOutput actuators = adcsCore.update(sensorData, cmd);
+            active_mode = actuators.current_mode;
 
             // Remove these later !!!
             states_hat = actuators.states_hat;
@@ -215,6 +240,12 @@ int main() {
             // Extract MTQ per-face data for logging
             mtq_face_current = actuators.mtq_face_current;
             mtq_face_b_ref = actuators.mtq_face_b_ref;
+            
+            // Extract innovation diagnostics
+            accel_innov = actuators.accel_innovation;
+            accel_innov_norm = actuators.accel_innovation_norm;
+            mag_innov = actuators.mag_innovation;
+            mag_innov_norm = actuators.mag_innovation_norm;
 
             dynamics.update(tau_all);
             t += dt;
@@ -224,10 +255,10 @@ int main() {
         // states_hat = states_true; // For logging equivalence only
         tau_grav = dynamics.getTauGravity();      // NEW
         tau_dist = dynamics.getTauDisturbance();  // NEW
-        ADCS::Command current_cmd = getCommand(t);
         logger.log(t, states_true, states_hat, reference, tau_all, measurements, 
                    states_m, tau_grav, tau_dist, mtq_face_current, mtq_face_b_ref,
-                   static_cast<int>(current_cmd.mode));
+                   accel_innov, accel_innov_norm, mag_innov, mag_innov_norm,
+                   static_cast<int>(active_mode));
         t_next_plot = t + t_plot;
     }
 

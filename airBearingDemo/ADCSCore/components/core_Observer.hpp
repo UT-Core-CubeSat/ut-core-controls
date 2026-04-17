@@ -16,6 +16,12 @@ public:
     ObserverClass();
     StateVector update(const Param::Vector13& measurements, const TimeReal& t, const Scalar& dt);
     
+    // Getters for innovation diagnostics
+    Scalar getLastAccelInnovationNorm() const { return last_accel_innovation_norm; }
+    Scalar getLastMagInnovationNorm() const { return last_mag_innovation_norm; }
+    Vector3 getLastAccelInnovation() const { return last_accel_innovation; }
+    Vector3 getLastMagInnovation() const { return last_mag_innovation; }
+    
 private: 
     HelperFunctions helpers;
 
@@ -41,6 +47,12 @@ private:
     Vector3 sigma_v, sigma_u;
     Param::TimeReal epoch_time;
     Param::TimeReal current_time;
+    
+    // Innovation diagnostics (for debugging/tuning)
+    Vector3 last_accel_innovation;
+    Scalar last_accel_innovation_norm;
+    Vector3 last_mag_innovation;
+    Scalar last_mag_innovation_norm;
 };
 
 #endif

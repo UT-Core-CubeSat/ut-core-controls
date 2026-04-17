@@ -21,6 +21,10 @@ ObserverClass::ObserverClass()
     mag_min_norm(Param::Observer::mag_min_norm)
 {
     q_hat(0) = 1; q_hat(1) = 0; q_hat(2) = 0; q_hat(3) = 0;
+    last_accel_innovation = Vector3::Zero();
+    last_accel_innovation_norm = static_cast<Scalar>(0.0);
+    last_mag_innovation = Vector3::Zero();
+    last_mag_innovation_norm = static_cast<Scalar>(0.0);
 }
 
 void ObserverClass::propagate(const Vector3& omega_meas, Scalar dt) {
@@ -97,6 +101,10 @@ void ObserverClass::updateWithGravity(const Vector3& accel_meas, Scalar dt) {
     // Subtraction residual: z = g_meas - g_pred
     Vector3 z = g_meas_body - g_pred_body;
     
+    // Store innovation for diagnostics
+    last_accel_innovation = z;
+    last_accel_innovation_norm = z.norm();
+    
     // Measurement matrix H = -skew(g_pred)
     Param::Matrix36 H;
     H(0,0) = 0;                H(0,1) = -g_pred_body(2); H(0,2) = g_pred_body(1);
@@ -128,9 +136,10 @@ void ObserverClass::updateWithGravity(const Vector3& accel_meas, Scalar dt) {
     // Update bias estimate
     beta_hat += dbeta;
     
-    // Update covariance: P = (I - K*H) * P
+    // Update covariance: Joseph form P = (I - K*H)*P*(I - K*H)^T + K*R*K^T
     Param::Matrix6 I6 = Param::Matrix6::Identity();
-    P = (I6 - K * H) * P;
+    Param::Matrix6 IKH = I6 - K * H;
+    P = IKH * P * IKH.transpose() + K * R_accel * K.transpose();
     P = static_cast<Scalar>(0.5) * (P + P.transpose());
 }
 
@@ -150,6 +159,10 @@ void ObserverClass::updateWithMagnetometer(const Vector3& mag_meas, Scalar dt) {
     
     // Subtraction residual: z = B_meas - B_pred
     Vector3 z = B_meas_body - B_pred_body;
+    
+    // Store innovation for diagnostics
+    last_mag_innovation = z;
+    last_mag_innovation_norm = z.norm();
     
     // Measurement matrix H = -skew(B_pred)
     Param::Matrix36 H;
@@ -181,9 +194,10 @@ void ObserverClass::updateWithMagnetometer(const Vector3& mag_meas, Scalar dt) {
     
     beta_hat += dbeta;
     
-    // Update covariance
+    // Update covariance: Joseph form P = (I - K*H)*P*(I - K*H)^T + K*R*K^T
     Param::Matrix6 I6 = Param::Matrix6::Identity();
-    P = (I6 - K * H) * P;
+    Param::Matrix6 IKH = I6 - K * H;
+    P = IKH * P * IKH.transpose() + K * R_mag * K.transpose();
     P = static_cast<Scalar>(0.5) * (P + P.transpose());
 }
 
