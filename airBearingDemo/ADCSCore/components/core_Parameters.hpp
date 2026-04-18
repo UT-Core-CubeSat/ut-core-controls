@@ -162,7 +162,7 @@ namespace Param {
 
         // Feed-forward compensation for wheel internal dynamics
         namespace FeedForward {
-            constexpr bool enable_friction_comp = true;           // Compensate friction
+            constexpr bool enable_friction_comp = false;           // Compensate friction
             constexpr bool enable_ripple_comp = false;            // Compensate ripple (experimental)
             
             // Friction model parameters (match plant: Kt*I0/omega_nl)
