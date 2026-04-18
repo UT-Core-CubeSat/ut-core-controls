@@ -62,6 +62,50 @@ Source of truth:
 
 ---
 
+---
+
+## Motor Driver API (Actuator MCU)
+
+The `MotorDriver` class serves as the high-speed bridge between the ADCS torque commands and the PWM hardware. It implements a cascaded control law that translates a requested torque into a duty cycle using a physics-based integrator, a linear RPM-to-Duty-Cycle mapping, and a PD feedback loop.
+
+### Core Logic: Torque to Duty Cycle
+The driver treats the commanded torque ($\tau_{cmd}$) as a constant acceleration request. It maintains a persistent internal target speed ($\omega_{target}$) that integrates this torque over time:
+$$\omega_{target}[k] = \omega_{target}[k-1] + \left( \frac{\tau_{cmd}}{I_{wheel}} \right) \cdot dt$$
+This target generates a feed-forward duty cycle via experimental RPM mapping, while a PD loop corrects for sensor-measured errors and acceleration lag.
+
+### Integration and Usage
+
+This class is designed to run on the Actuator/Motor MCU in a high-frequency loop (500 Hz – 1 kHz). The `dt` passed to the function must be the period of this local high-speed loop.
+
+```cpp
+#include "MotorDriver.hpp"
+
+static MotorDriver g_driver;
+
+void motor_loop_1000hz() {
+    float dt = 0.001f; // 1kHz loop period
+    
+    // 1. Read current physical wheel speeds from sensors (rad/s)
+    Param::Vector4 omega_measured = read_wheel_encoders_rads();
+    
+    // 2. Fetch latest ADCS torque and mission mode from CAN bus
+    Param::Vector4 tau_from_can = get_latest_can_torque_nm();
+    ADCS::MissionMode mode_from_can = get_latest_can_mode(); 
+    
+    // 3. Compute Duty Cycles (-1.0 to 1.0)
+    Param::Vector4 duty_cycles = g_driver.computeMotorCommands(
+        tau_from_can, 
+        omega_measured, 
+        dt, 
+        mode_from_can
+    );
+    
+    // 4. Update PWM hardware
+    for (int i = 0; i < 4; ++i) {
+        set_motor_pwm(i, duty_cycles(i));
+    }
+}
+```
 ## Zephyr Control Loop Template (Air-Bearing)
 
 ```cpp
