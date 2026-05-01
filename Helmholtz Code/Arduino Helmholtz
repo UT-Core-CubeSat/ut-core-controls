@@ -1,0 +1,207 @@
+#include <Arduino.h>
+#include <Wire.h>
+#include <Adafruit_INA260.h>
+
+// ================= CONSTANTS =================
+constexpr int N_AXES = 3;
+constexpr float CTRL_HZ = 100.0f;
+constexpr unsigned long CTRL_PERIOD_US = (unsigned long)(1000000.0f / CTRL_HZ);
+constexpr float MAX_CURRENT_A = 3.0f;
+
+// ================= PIN DEFINITIONS =================
+constexpr int RPWM_PINS[N_AXES] = {3, 9, 11};
+constexpr int LPWM_PINS[N_AXES] = {5, 6, 10};
+constexpr int R_EN_PINS[N_AXES] = {7, 4, 12};
+constexpr int L_EN_PINS[N_AXES] = {8, 2, 13};
+
+// ================= INA260 =================
+Adafruit_INA260 ina[N_AXES];
+const uint8_t INA_ADDR[N_AXES] = {0x40, 0x41, 0x44};
+
+// ================= PI STATE =================
+float Kp[N_AXES]     = {50.0f,50.00f, 50.0f};
+float Ki[N_AXES]     = {800.0f, 800.0f, 800.0f};
+float Kaw[N_AXES]    = {1.0f,  1.0f,  1.0f};
+float x_i[N_AXES]    = {0.0f,  0.0f,  0.0f};
+float e_prev[N_AXES] = {0.0f,  0.0f,  0.0f};
+
+float i_cmd[N_AXES]  = {0.0f,  0.0f,  0.0f};
+
+constexpr float U_MIN = -255.0f;
+constexpr float U_MAX =  255.0f;
+
+// ================= PI CONTROLLER =================
+float clampf(float v, float lo, float hi) {
+  return v > hi ? hi : (v < lo ? lo : v);
+}
+
+float pi_update(int axis, float ref, float meas, float dt) {
+  float e  = ref - meas;
+  float xi = x_i[axis] + 0.5f * dt * (e + e_prev[axis]);
+
+  float u_raw = Kp[axis] * e + Ki[axis] * xi;
+  float u_sat = clampf(u_raw, U_MIN, U_MAX);
+
+  float Ki_safe = Ki[axis] > 1e-9f ? Ki[axis] : 1e-9f;
+  xi += (Kaw[axis] / Ki_safe) * (u_sat - u_raw) * dt;
+
+  x_i[axis]    = xi;
+  e_prev[axis] = e;
+  return u_sat;
+}
+
+// ================= CURRENT SENSING =================
+float readCurrent(int axis) {
+  float current = ina[axis].readCurrent() * 1e-3f;
+  
+  // The X-axis H-bridge/sensor polarity is reversed. 
+  // Flip the sign in software to prevent runaway!
+  if (axis == 0) {
+    current = -current;
+  }
+  
+  return current;
+}
+
+// ================= H-BRIDGE =================
+void enableBridges() {
+  for (int axis = 0; axis < N_AXES; ++axis) {
+    pinMode(R_EN_PINS[axis], OUTPUT);
+    pinMode(L_EN_PINS[axis], OUTPUT);
+    digitalWrite(R_EN_PINS[axis], HIGH);
+    digitalWrite(L_EN_PINS[axis], HIGH);
+    analogWrite(RPWM_PINS[axis], 0);
+    analogWrite(LPWM_PINS[axis], 0);
+  }
+}
+
+void writeAxis(int axis, float u) {
+  int pwm = (int)fabsf(u);
+  if (pwm > 255) pwm = 255;
+  digitalWrite(R_EN_PINS[axis], HIGH);
+  digitalWrite(L_EN_PINS[axis], HIGH);
+  if (u >= 0.0f) {
+    analogWrite(RPWM_PINS[axis], pwm);
+    analogWrite(LPWM_PINS[axis], 0);
+  } else {
+    analogWrite(RPWM_PINS[axis], 0);
+    analogWrite(LPWM_PINS[axis], pwm);
+  }
+}
+
+void zeroAll() {
+  for (int axis = 0; axis < N_AXES; ++axis) {
+    analogWrite(RPWM_PINS[axis], 0);
+    analogWrite(LPWM_PINS[axis], 0);
+  }
+}
+
+// ================= SERIAL PARSING =================
+char buf[64];
+int  buf_pos = 0;
+
+void processCommand(char* cmd) {
+  // NEW: Instantly print whatever the Arduino thinks it just received
+  Serial.print(F("RAW CMD RECEIVED: ["));
+  Serial.print(cmd);
+  Serial.println(F("]"));
+  if (strncmp(cmd, "set,", 4) == 0) {
+    char* p = cmd + 4; 
+    char* t1 = strtok(p, ",");
+    char* t2 = strtok(NULL, ",");
+    char* t3 = strtok(NULL, ",");
+    
+    if (t1 && t2 && t3) {
+      i_cmd[0] = clampf(atof(t1), -MAX_CURRENT_A, MAX_CURRENT_A);
+      i_cmd[1] = clampf(atof(t2), -MAX_CURRENT_A, MAX_CURRENT_A);
+      i_cmd[2] = clampf(atof(t3), -MAX_CURRENT_A, MAX_CURRENT_A);
+      
+      // NEW: Force the Arduino to echo what it just parsed!
+      Serial.print(F("ACK set: "));
+      Serial.print(i_cmd[0], 3); Serial.print(F(", "));
+      Serial.print(i_cmd[1], 3); Serial.print(F(", "));
+      Serial.println(i_cmd[2], 3);
+      
+    } else {
+      // NEW: If parsing fails, scream for help
+      Serial.print(F("ERR: Failed to parse! Received: "));
+      Serial.println(cmd);
+    }
+  } else if (strncmp(cmd, "zero", 4) == 0) {
+      i_cmd[0] = 0.0f;
+      i_cmd[1] = 0.0f;
+      i_cmd[2] = 0.0f;
+      Serial.println(F("ACK: Coils zeroed."));
+  }
+}
+
+void handleSerial() {
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n') {
+      buf[buf_pos] = '\0';
+      if (buf_pos > 0) processCommand(buf);
+      buf_pos = 0;
+    } else if (buf_pos < (int)sizeof(buf) - 1) {
+      buf[buf_pos++] = c;
+    } else {
+      buf_pos = 0; // Buffer overflow safeguard
+    }
+  }
+}
+
+// ================= SETUP =================
+unsigned long next_tick_us = 0;
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+  enableBridges();
+  zeroAll();
+
+  for (int axis = 0; axis < N_AXES; ++axis) {
+    if (!ina[axis].begin(INA_ADDR[axis], &Wire)) {
+      Serial.print(F("INA260 not found at 0x"));
+      Serial.println(INA_ADDR[axis], HEX);
+      while (1) {}
+    }
+    ina[axis].setAveragingCount(INA260_COUNT_16);
+    ina[axis].setVoltageConversionTime(INA260_TIME_1_1_ms);
+    ina[axis].setCurrentConversionTime(INA260_TIME_1_1_ms);
+  }
+
+  next_tick_us = micros();
+  Serial.println(F("READY"));
+}
+
+// ================= LOOP =================
+void loop() {
+handleSerial();
+
+unsigned long now = micros();
+  if ((long)(now - next_tick_us) < 0) return;
+  next_tick_us += CTRL_PERIOD_US;
+
+  float dt = CTRL_PERIOD_US * 1e-6f;
+
+  float i_meas[N_AXES], u_sat[N_AXES];
+  for (int axis = 0; axis < N_AXES; ++axis) {
+    i_meas[axis] = readCurrent(axis);
+    u_sat[axis]  = pi_update(axis, i_cmd[axis], i_meas[axis], dt);
+    writeAxis(axis, u_sat[axis]);
+  }
+
+  // Print telemetry back to Python at 5 Hz
+  static int print_ctr = 0;
+  if (++print_ctr >= 20) {
+    print_ctr = 0;
+    Serial.print(F("tel, Meas I: "));
+    Serial.print(i_meas[0], 3); Serial.print(F(", "));
+    Serial.print(i_meas[1], 3); Serial.print(F(", "));
+    Serial.print(i_meas[2], 3);
+    Serial.print(F(" | PWM: "));
+    Serial.print(u_sat[0], 0); Serial.print(F(", "));
+    Serial.print(u_sat[1], 0); Serial.print(F(", "));
+    Serial.println(u_sat[2], 0);
+  }
+}

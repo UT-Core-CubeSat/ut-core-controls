@@ -194,13 +194,13 @@ int main() {
 
     auto getCommand = [](Real t) {
         ADCS::Command cmd;
-        // Demo sequence: OFF for startup, SAFE for B-dot detumble, then BEARING for wheel hold.
+        // Demo sequence: OFF → DETUMBLE (B-dot) → BOTH (NDI + MTQ desaturation)
         if (t < static_cast<Real>(0.5)) {
             cmd.mode = ADCS::MissionMode::OFF;
         } else if (t < static_cast<Real>(60.0)) {
-            cmd.mode = ADCS::MissionMode::SAFE;
+            cmd.mode = ADCS::MissionMode::MOTOR;
         } else {
-            cmd.mode = ADCS::MissionMode::BEARING;
+            cmd.mode = ADCS::MissionMode::OFF;
         }
         return cmd;
     };

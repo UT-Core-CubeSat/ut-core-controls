@@ -29,12 +29,13 @@ namespace Param {
     using Matrix6 = Math::Mat6;
 
     // INTERNAL CONTROL MODES
-    // These are what the controller understands as the current mode of operation. 
+    // These are what the controller understands as the current mode of operation.
     // The Core class will map these to the PointingMode based on sensor data and state.
-    enum class PointingMode { 
+    enum class PointingMode {
         OFF,      // No control
-        DETUMBLE, // BDot controller active
-        POINT     // NDI controller active
+        DETUMBLE, // BDot controller active, wheels zero
+        MOTOR,    // NDI controller active, MTQ zero
+        BOTH      // NDI controller active with MTQ wheel-momentum desaturation
     };
 
     namespace Apparatus {
@@ -115,6 +116,18 @@ namespace Param {
         constexpr Real tau_w_max = static_cast<Real>(13e-1);
         constexpr Real tau_w_min = -tau_w_max;
         constexpr Real k_null = static_cast<Real>(2e-7);
+
+        // Wheel deadband: minimum operating speed in MOTOR and BOTH modes [RPM / rad/s]
+        // Keeps wheels out of near-zero stiction region; null direction produces zero net torque.
+        // Null-space of S: rows x=[c,-c,0,0], y=[0,0,c,-c], z=[s,s,s,s]
+        // → null vector: w1=w2, w3=w4, w1+w2+w3+w4=0  → [+1,+1,-1,-1] (up to sign)
+        constexpr Real omega_w_deadband_rpm = static_cast<Real>(200.0);
+        constexpr Real omega_w_deadband = omega_w_deadband_rpm * static_cast<Real>(2.0) * PI / static_cast<Real>(60.0);
+        static const Vector4 omega_w_null_dir = Vector4{static_cast<Real>(1.0), static_cast<Real>(1.0), static_cast<Real>(-1.0), static_cast<Real>(-1.0)};
+
+        // Angular acceleration limit [rad/s²]: protects against back-EMF during rapid reversals.
+        // Default 100 rad/s² ≈ 955 RPM/s. Tune upward once hardware is validated.
+        constexpr Real alpha_w_max = static_cast<Real>(100.0);
 
         // Wheel Geometry
         constexpr Real theta = static_cast<Real>(50.0) * deg2rad;

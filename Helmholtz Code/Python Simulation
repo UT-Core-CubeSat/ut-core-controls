@@ -1,0 +1,298 @@
+import serial
+import serial.tools.list_ports
+import numpy as np
+import time
+import threading
+import math
+
+SHOW_TELEMETRY = False
+
+# ================= CALIBRATION MATRIX =================
+# Your measured G matrix in uT/A
+G_uT = np.array([
+    [-139.4597,   23.3467,   12.0162],
+    [  37.1086,  119.1175,   -0.7674],
+    [   2.7860,   -1.5655, -118.0065]
+])
+
+# Convert to Tesla/A and calculate the inverse
+G_T = G_uT * 1e-6
+G_INV = np.linalg.inv(G_T)
+
+I_MAX_A = 3.5  # Hardware current limit
+
+# ================= AMBIENT FIELD =================
+# Measure with a calibrated magnetometer at your bench location.
+# Frame: X=North, Y=East, Z=Up  (same as the coil frame used in the G matrix).
+# Set all to 0.0 to disable ambient compensation.
+# B_AMBIENT_XYZ_uT = np.array([27.18, -8.0, 3.0])
+B_AMBIENT_XYZ_uT = np.array([0.0, 0.0, 0.0])  # <-- EDIT THIS!
+# ================= PHYSICS CONSTANTS =================
+DIPOLE_TILT_RAD = math.radians(11.5)
+EARTH_RADIUS_KM = 6371.0
+B0_T = 3.12e-5  # dipole field strength at magnetic equator, surface
+
+# ================= IGRF & ORBIT MATH =================
+def igrf_dipole_ned(lat_rad, lon_rad, alt_km):
+    """ Returns B field vector in NED frame (North, East, Down) in Tesla """
+    r = (EARTH_RADIUS_KM + alt_km) / EARTH_RADIUS_KM  
+    
+    mag_lat = math.asin(
+        math.sin(lat_rad) * math.cos(DIPOLE_TILT_RAD) +
+        math.cos(lat_rad) * math.cos(lon_rad) * math.sin(DIPOLE_TILT_RAD)
+    )
+
+    B_r   = -2.0 * B0_T * math.sin(mag_lat) / r**3   
+    B_lat =        B0_T * math.cos(mag_lat) / r**3   
+
+    # Convert to NED: North = -B_lat, Down = -B_r, East = 0 (dipole assumption)
+    B_north = -B_lat
+    B_east  =  0.0   
+    B_down  = -B_r   
+
+    return np.array([B_north, B_east, B_down])
+
+def orbit_position(t_sec, inclination_deg, altitude_km):
+    """ Returns geographic lat, lon in radians based on time. """
+    r_orbit_km   = EARTH_RADIUS_KM + altitude_km
+    mu_km3_s2    = 398600.4418              
+    period_s     = 2 * math.pi * math.sqrt(r_orbit_km**3 / mu_km3_s2)
+    omega_orbit  = 2 * math.pi / period_s 
+    omega_earth  = 7.2921e-5              
+
+    inc_rad      = math.radians(inclination_deg)
+    theta        = omega_orbit * t_sec      
+
+    # Geographic coordinates
+    lat = math.asin(math.sin(inc_rad) * math.sin(theta))
+    lon = math.atan2(
+        math.cos(inc_rad) * math.sin(theta),
+        math.cos(theta)
+    ) - omega_earth * t_sec 
+
+    return lat, lon
+
+# ================= SERIAL COMMS =================
+def find_port():
+    ports = serial.tools.list_ports.comports()
+    for p in ports:
+        if any(x in p.description for x in ["Arduino", "CH340", "USB Serial"]):
+            return p.device
+    return ports[0].device if ports else None
+
+def send_currents(ser, ix, iy, iz):
+    cmd = f"set,{ix:.4f},{iy:.4f},{iz:.4f}\n"
+    ser.write(cmd.encode('utf-8'))
+
+def listen_to_arduino(ser):
+    """Background thread to catch telemetry from Arduino"""
+    global SHOW_TELEMETRY
+    while True:
+        try:
+            line = ser.readline().decode('utf-8').strip()
+            if line.startswith("tel,"):
+                if SHOW_TELEMETRY:
+                    print(f"\r[Arduino] {line[5:]}    ", end="", flush=True)
+            elif line:
+                # Only print non-telemetry lines (like errors or acks if you kept them)
+                if not line.startswith("ACK") and not line.startswith("RAW"):
+                    pass # Or print if you want to see errors: print(f"\n[Arduino]: {line}")
+        except:
+            break
+
+# ================= CONTROL MATH =================
+def calculate_currents_xyz(b_target_xyz_T):
+    """Takes a desired net B-field in Tesla in the Coil Frame, returns safe currents.
+    Coils produce (b_target - B_ambient) so the net field the CubeSat sees equals b_target."""
+    b_ambient_T = B_AMBIENT_XYZ_uT * 1e-6
+    b_coil_T = b_target_xyz_T - b_ambient_T
+    i_cmd = G_INV @ b_coil_T
+    return np.clip(i_cmd, -I_MAX_A, I_MAX_A)
+
+def calculate_currents_vector(ux, uy, uz, b_mag_uT):
+    norm = np.sqrt(ux**2 + uy**2 + uz**2)
+    if norm < 1e-6:
+        return np.array([0.0, 0.0, 0.0])
+    unit_vec = np.array([ux/norm, uy/norm, uz/norm])
+    b_target_T = unit_vec * (b_mag_uT * 1e-6)
+    return calculate_currents_xyz(b_target_T)
+
+# ================= MAIN APP LOOP =================
+def main():
+    port = find_port()
+    if not port:
+        print("No Arduino found!")
+        return
+
+    print(f"Connecting to {port} at 115200 baud... ", end="", flush=True)
+    ser = serial.Serial(port, 115200, timeout=1.0)
+    
+    while True:
+        try:
+            line = ser.readline().decode('utf-8', errors='ignore').strip()
+            if "READY" in line:
+                print("Connected!")
+                break
+        except Exception:
+            pass
+
+    ser.reset_input_buffer()
+    listener = threading.Thread(target=listen_to_arduino, args=(ser,), daemon=True)
+    listener.start()
+    
+    while True:
+        global SHOW_TELEMETRY
+        ambient_mag = np.linalg.norm(B_AMBIENT_XYZ_uT)
+        ambient_status = f"{ambient_mag:.1f}µT configured" if ambient_mag > 0 else "NOT SET"
+        print("\n========================================")
+        print("Helmholtz CLI Commander Active")
+        print(f" Ambient compensation: {ambient_status}")
+        print(" Commands: 'vector', 'orbit', 'sine', 'zero', 'cancel', 'quit'")
+        print("========================================")
+        
+        mode = input("Enter command: ").strip().lower()
+        
+        if mode == 'quit':
+            send_currents(ser, 0, 0, 0)
+            break
+        
+        elif mode == 'zero':
+            send_currents(ser, 0, 0, 0)
+            print("Coils zeroed.")
+
+        elif mode == 'cancel':
+            ambient_mag = np.linalg.norm(B_AMBIENT_XYZ_uT)
+            if ambient_mag < 1e-3:
+                print("WARNING: B_AMBIENT_XYZ_uT is not set. Edit the constant at the top of this file.")
+            else:
+                # Target is zero net field, so coils produce -B_ambient
+                i_req = calculate_currents_xyz(np.zeros(3))
+                print(f"Ambient field: Bx={B_AMBIENT_XYZ_uT[0]:.2f} By={B_AMBIENT_XYZ_uT[1]:.2f} Bz={B_AMBIENT_XYZ_uT[2]:.2f} µT  |B|={ambient_mag:.2f}µT")
+                print(f"Cancellation currents [A]: Ix={i_req[0]:.3f}  Iy={i_req[1]:.3f}  Iz={i_req[2]:.3f}")
+                send_currents(ser, i_req[0], i_req[1], i_req[2])
+                print("Settling (10s)...")
+                SHOW_TELEMETRY = True
+                time.sleep(10)
+                SHOW_TELEMETRY = False
+                print("Ambient field cancellation active.")
+            
+        elif mode == 'vector':
+            user_in = input("Enter [ux uy uz b_mag_uT] (e.g., '1 0 0 25'): ").strip()
+            try:
+                parts = user_in.split()
+                if len(parts) != 4:
+                    print("Invalid input. Need 4 numbers.")
+                    continue
+                ux, uy, uz, b_mag = map(float, parts)
+                i_req = calculate_currents_vector(ux, uy, uz, b_mag)
+                
+                print(f"Target Currents [A]:  Ix: {i_req[0]:.3f} | Iy: {i_req[1]:.3f} | Iz: {i_req[2]:.3f}")
+                send_currents(ser, i_req[0], i_req[1], i_req[2])
+                print("Settling (10s)...")
+                SHOW_TELEMETRY = True
+                time.sleep(10)
+                SHOW_TELEMETRY = False
+            except ValueError:
+                print("Invalid input.")
+                
+        elif mode == 'sine':
+            axis_in = input("Enter axis [x/y/z]: ").strip().lower()
+            if axis_in not in ('x', 'y', 'z'):
+                print("Invalid axis.")
+                continue
+            try:
+                amp_uT = float(input("Enter amplitude (uT): ").strip())
+                freq_hz = float(input("Enter frequency (Hz): ").strip())
+                rate_hz = float(input("Update rate (Hz) [Default 50]: ") or "50")
+            except ValueError:
+                print("Invalid parameters.")
+                continue
+
+            if freq_hz <= 0 or rate_hz <= 0:
+                print("Frequency and update rate must be positive.")
+                continue
+            if rate_hz < 2 * freq_hz:
+                print(f"WARNING: update rate {rate_hz}Hz is below Nyquist for {freq_hz}Hz signal.")
+
+            axis_idx = {'x': 0, 'y': 1, 'z': 2}[axis_in]
+            dt = 1.0 / rate_hz
+            two_pi_f = 2.0 * math.pi * freq_hz
+
+            print(f"\nDriving {axis_in.upper()}-axis: {amp_uT}uT @ {freq_hz}Hz, updating at {rate_hz}Hz.")
+            print(">>> PRESS CTRL+C TO STOP AND RETURN TO MENU <<<\n")
+
+            t0_wall = time.time()
+            next_tick = t0_wall
+            try:
+                while True:
+                    t = time.time() - t0_wall
+                    b_target_T = np.zeros(3)
+                    b_target_T[axis_idx] = (amp_uT * 1e-6) * math.sin(two_pi_f * t)
+                    i_req = calculate_currents_xyz(b_target_T)
+                    send_currents(ser, i_req[0], i_req[1], i_req[2])
+
+                    print(f"\rt: {t:7.2f}s | B{axis_in}: {b_target_T[axis_idx]*1e6:+7.2f}uT --> Ix: {i_req[0]:+5.2f}A, Iy: {i_req[1]:+5.2f}A, Iz: {i_req[2]:+5.2f}A   ", end="", flush=True)
+
+                    next_tick += dt
+                    sleep_for = next_tick - time.time()
+                    if sleep_for > 0:
+                        time.sleep(sleep_for)
+                    else:
+                        next_tick = time.time()
+            except KeyboardInterrupt:
+                print("\n\nSine drive stopped by user.")
+                send_currents(ser, 0, 0, 0)
+                print("Coils zeroed.")
+
+        elif mode == 'orbit':
+            try:
+                inc = float(input("Enter Inclination (deg) [Default 51.6]: ") or "51.6")
+                alt = float(input("Enter Altitude (km) [Default 400.0]: ") or "400.0")
+                b_mult = float(input("Enter B-Field Multiplier [Default 1.0]: ") or "1.0")
+            except ValueError:
+                print("Invalid parameters.")
+                continue
+                
+            print(f"\nStarting Orbit Sim: {inc}° Inc, {alt}km Alt, {b_mult}x B-Field (1x Time).")
+            print(">>> PRESS CTRL+C TO STOP AND RETURN TO MENU <<<\n")
+            
+            t0_wall = time.time()
+            
+            try:
+                while True:
+                    # 1x Real-time simulation
+                    t_sim = time.time() - t0_wall
+                    
+                    # Get position and B-field, then apply the multiplier
+                    lat_rad, lon_rad = orbit_position(t_sim, inc, alt)
+                    b_ned_T = igrf_dipole_ned(lat_rad, lon_rad, alt) * b_mult
+                    
+                    # Convert NED to Coil XYZ (X=North, Y=East, Z=Up -> Down = -Z)
+                    b_xyz_T = np.array([b_ned_T[0], b_ned_T[1], -b_ned_T[2]])
+                    
+                    # Calculate required currents
+                    i_req = calculate_currents_xyz(b_xyz_T)
+                    
+                    # Send to Arduino
+                    send_currents(ser, i_req[0], i_req[1], i_req[2])
+                    
+                    # Print UI row
+                    lat_deg = math.degrees(lat_rad)
+                    lon_deg = math.degrees(lon_rad)
+                    b_mag_uT = np.linalg.norm(b_ned_T) * 1e6
+                    
+                    print(f"\rSim T: {t_sim:6.0f}s | Lat: {lat_deg:5.1f}° | Lon: {lon_deg:6.1f}° | |B|: {b_mag_uT:6.1f}µT --> Ix: {i_req[0]:5.2f}A, Iy: {i_req[1]:5.2f}A, Iz: {i_req[2]:5.2f}A   ", end="", flush=True)
+                    
+                    # Step every 1 real-world second
+                    time.sleep(1)
+                    
+            except KeyboardInterrupt:
+                print("\n\nOrbit simulation stopped by user.")
+                send_currents(ser, 0, 0, 0)
+                print("Coils zeroed.")
+
+        else:
+            print("Unknown command.")
+
+if __name__ == "__main__":
+    main()

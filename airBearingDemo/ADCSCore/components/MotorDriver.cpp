@@ -33,7 +33,30 @@ MotorDriver::Vector4 MotorDriver::computeMotorCommands(const Vector4& tau_w_cmd,
     // PD control law to convert desired wheel torques to 4 duty cycle commands, based on the experimentally 
     // found relationship between duty cycle and RPM's for our specific reaction wheels. 
 
-    omega_target = omega_target + (tau_w_cmd / I_wheel) * dt;
+    // Integrate torque into candidate target speed
+    Vector4 omega_candidate = omega_target + (tau_w_cmd / I_wheel) * dt;
+
+    // Angular acceleration saturation: limit |Δω/Δt| ≤ alpha_w_max to prevent back-EMF damage
+    const Scalar delta_max = Param::Actuators::alpha_w_max * dt;
+    for (int i = 0; i < 4; ++i) {
+        Scalar delta = omega_candidate(i) - omega_target(i);
+        if (delta > delta_max)       delta = delta_max;
+        else if (delta < -delta_max) delta = -delta_max;
+        omega_target(i) += delta;
+    }
+
+    // Deadband: keep wheels at minimum speed in MOTOR and BOTH modes to avoid stiction near zero.
+    // The null-space direction [+1,+1,-1,-1] produces zero net body torque.
+    if (mission_mode == ADCS::MissionMode::MOTOR || mission_mode == ADCS::MissionMode::BOTH) {
+        const Scalar deadband = Param::Actuators::omega_w_deadband;
+        const Vector4& null_dir = Param::Actuators::omega_w_null_dir;
+        for (int i = 0; i < 4; ++i) {
+            if (omega_target(i) > -deadband && omega_target(i) < deadband) {
+                omega_target(i) = null_dir(i) * deadband;
+            }
+        }
+    }
+
     // Saturate target wheel speeds to max limits
     omega_target = saturateSymmetric(omega_target, omega_w_max);
 

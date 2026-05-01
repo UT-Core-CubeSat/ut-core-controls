@@ -41,16 +41,18 @@ AdcsOutput Core::update(const SensorData& sensors, const Command& command)
     workspace_ref_ = Param::Vector10::Zero();
     workspace_ref_(0) = 1; // unit quaternion, no rotation
 
-    if (command.mode != MissionMode::BEARING) {
+    if (command.mode != MissionMode::BOTH) {
         bearing_mode_armed = false;
     }
 
-    Param::PointingMode mode = Param::PointingMode::POINT;
+    Param::PointingMode mode = Param::PointingMode::OFF;
     if (command.mode == MissionMode::OFF) {
         mode = Param::PointingMode::OFF;
-    } else if (command.mode == MissionMode::SAFE) {
+    } else if (command.mode == MissionMode::DETUMBLE) {
         mode = Param::PointingMode::DETUMBLE;
-    } else if (command.mode == MissionMode::BEARING) {
+    } else if (command.mode == MissionMode::MOTOR) {
+        mode = Param::PointingMode::MOTOR;
+    } else if (command.mode == MissionMode::BOTH) {
         if (!bearing_mode_armed) {
             Param::Real w_thresh = Param::Controller::bearing_entry_axis_rate_threshold;
             bool rates_ready = (std::abs(sensors.gyro(0)) <= w_thresh) &&
@@ -60,7 +62,7 @@ AdcsOutput Core::update(const SensorData& sensors, const Command& command)
                 bearing_mode_armed = true;
             }
         }
-        mode = bearing_mode_armed ? Param::PointingMode::POINT : Param::PointingMode::DETUMBLE;
+        mode = bearing_mode_armed ? Param::PointingMode::BOTH : Param::PointingMode::DETUMBLE;
     }
 
     // 4. Run controller
@@ -76,9 +78,11 @@ AdcsOutput Core::update(const SensorData& sensors, const Command& command)
     if (mode == Param::PointingMode::OFF) {
         out.current_mode = MissionMode::OFF;
     } else if (mode == Param::PointingMode::DETUMBLE) {
-        out.current_mode = MissionMode::SAFE;
+        out.current_mode = MissionMode::DETUMBLE;
+    } else if (mode == Param::PointingMode::MOTOR) {
+        out.current_mode = MissionMode::MOTOR;
     } else {
-        out.current_mode = MissionMode::BEARING;
+        out.current_mode = MissionMode::BOTH;
     }
 
     // 6. Allocate body dipole to per-face currents and reference fields (black-box derivation)

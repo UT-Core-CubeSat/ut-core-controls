@@ -9,14 +9,15 @@ namespace ADCS {
 
 // COMMAND INTERFACE (What CDH/Ground sends to ADCS)
 enum class MissionMode {
-    OFF,       // No control
-    SAFE,      // B-dot active
-    BEARING    // NDI attitude hold + wheel desat
+    OFF,      // No control
+    DETUMBLE, // B-Dot via magnetorquers only
+    MOTOR,    // NDI attitude hold via reaction wheels only (no MTQ)
+    BOTH      // NDI via wheels + magnetorquer wheel-momentum desaturation
 };
 
 struct Command {
     MissionMode mode;
-    Command() : mode(MissionMode::BEARING) {}
+    Command() : mode(MissionMode::BOTH) {}
 };
 
 // SENSOR INTERFACE (What CAN provides from sensors)
