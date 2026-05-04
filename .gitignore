@@ -28,3 +28,7 @@
 
 #Ignore Zephyr Build Folders
 build/
+
+# ignore catalog directories
+Normal/
+Projected/
