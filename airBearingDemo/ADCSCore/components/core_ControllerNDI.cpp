@@ -1,32 +1,34 @@
 #include "core_ControllerNDI.hpp"
 #include <iostream>  // DEBUG
 
+//This file was recommented by Averie on 10/19/2026
 // Constructor 
+
 ControllerNDI::ControllerNDI()
     : // Initialize Members
-    I(Param::Spacecraft::I),
-    I_wheel(Param::Actuators::I_wheel),
-    S(Param::Actuators::S),
-    S_pseudo(Param::Actuators::S_pseudo),
-    N(Param::Actuators::N),
-    omega_w_max(Param::Actuators::omega_w_max),
+        I(Param::Spacecraft::I),                        //Spacecraft Inertia Matrix
+        I_wheel(Param::Actuators::I_wheel),             //Reaction wheel intertia values/matrix
+        S(Param::Actuators::S),                         //Wheel geometry/torque mapping matrix
+        S_pseudo(Param::Actuators::S_pseudo),           //Pseudoinverse (?) used to distribute torque accross the wheels
+        N(Param::Actuators::N),                         //Null-spcae wheel speed control
+    omega_w_max(Param::Actuators::omega_w_max),         //Configured wheel-speed bounds
     omega_w_min(Param::Actuators::omega_w_min),
-    tau_w_max(Param::Actuators::tau_w_max),
+    tau_w_max(Param::Actuators::tau_w_max),             //Configured wheel-torque bounds
     tau_w_min(Param::Actuators::tau_w_min),
-    lambda_min_model(Param::Controller::lambda_min_model),
-    k_null(Param::Actuators::k_null),
-    k_desat(Param::Actuators::k_desat),
-    m_max(Param::Actuators::m_max),
+    lambda_min_model(Param::Controller::lambda_min_model),      //Min quarternion-dot-product threshold
+    k_null(Param::Actuators::k_null),                   //Gain for null-space wheel speed regulation
+    k_desat(Param::Actuators::k_desat),                 //Gain for wheel momentum desat
+    m_max(Param::Actuators::m_max),                     //Magnetorquer dipole-command bounds
     m_min(Param::Actuators::m_min),
-    h_cg(Param::Apparatus::h_cg),
-    m(Param::Spacecraft::mass),
-    x_m(StateVector::Zero()),
-    is_saturated(false),
-    accumulated_time(static_cast<Param::Real>(0.0)),
-    desat_active(false),
-    desat_entry_timer(static_cast<Param::Real>(0.0)),
-    desat_exit_timer(static_cast<Param::Real>(0.0)),
-    desat_momentum_target(Vector3::Zero())
+    h_cg(Param::Apparatus::h_cg),                       //Center of gravity offset-param
+    m(Param::Spacecraft::mass),                         //Spacecraft mass
+    x_m(StateVector::Zero()),                           //internal reference model state (vector full of zeroes)
+    is_saturated(false),                                //Did the previous torque command reach a limit?
+    accumulated_time(static_cast<Param::Real>(0.0)),    //Tracks elapsed controller time
+    desat_active(false),                                //Tracks whether the desat mode is active
+    desat_entry_timer(static_cast<Param::Real>(0.0)),   //how long has entry condition been true?
+    desat_exit_timer(static_cast<Param::Real>(0.0)),    //how long has exit condition been true?
+    desat_momentum_target(Vector3::Zero())              //stores wheel momentum target used during desat (starts a zeros vector)
 {
     // Calculate gains 
     calculate_gains(Param::Controller::t_s_model,
@@ -35,78 +37,88 @@ ControllerNDI::ControllerNDI()
                     Param::Controller::zeta_plant);
 
     x_m(0) = 0; x_m(1) = 0; x_m(2) = 0; x_m(3) = 1; // identity quaternion
-    x_m(4) = 0; x_m(5) = 0; x_m(6) = 0; // zero body rates
+    x_m(4) = 0; x_m(5) = 0; x_m(6) = 0; // zero body rates angular velocity
 
 }
 
-ControllerNDI::NDIOutput ControllerNDI::update(const Param::Vector11& states,
-                                     const Param::Vector10& reference,
-                                     const Param::Vector13& measurements, Param::Real dt) 
+
+//main NDI function
+ControllerNDI::NDIOutput ControllerNDI::update(const Param::Vector11& states,               //Accepts est. state
+                                     const Param::Vector10& reference,                      //accepts requested attitude and motion
+                                     const Param::Vector13& measurements, Param::Real dt)   //accepts sensor measurement vector,
+                                                                                            //elapsed time since previous controller update
 {
     // Reference
     Quat q_r; 
-    q_r(0) = reference(1);
-    q_r(1) = reference(2);
-    q_r(2) = reference(3);
-    q_r(3) = reference(0);
-    q_r.normalize();
+    q_r(0) = reference(1);           //Moving the reference vector into
+    q_r(1) = reference(2);           //new quaternion, stored slightly different
+    q_r(2) = reference(3);           //scalar-last for quarternion object
+    q_r(3) = reference(0);           //moved from reference entries 0-3
+    q_r.normalize();                 //scales quaternion so mag is 1
 
-    Vector3 omega_r = reference.segment<3>(4);
-    Vector3 alpha_r = reference.segment<3>(7);
-    Reference NDI_reference;
-    NDI_reference.setSegment(0, q_r);
-    NDI_reference.setSegment(4, omega_r);
+    Vector3 omega_r = reference.segment<3>(4);          //extract angular velocity (3 entries, starting at index 4)
+    Vector3 alpha_r = reference.segment<3>(7);          //extract angular acceleration (3 entries starting at index 7)
+    
+    Reference NDI_reference;                       
+    NDI_reference.setSegment(0, q_r);                   //package extracted values into a single reference obj
+    NDI_reference.setSegment(4, omega_r);               
     NDI_reference.setSegment(7, alpha_r);
 
     // States
-    Quat q;
-    q(0) = states(1);
-    q(1) = states(2);
-    q(2) = states(3);
-    q(3) = states(0);
-    q.normalize();
-    Vector3 omega = states.segment<3>(4);
-    Vector4 omega_w = states.segment<4>(7);
+    Quat q;         
+    // [q_x, q_y, q_z, q_w]
+    q(0) = states(1);               //read actual spacecraft state 
+    q(1) = states(2);               //and put it into a quaternion object also
+    q(2) = states(3);               // Q is state, Q_r is reference...
+    q(3) = states(0);               // not confusing at all...
+    q.normalize();                  //protects q calculations from small deviations
+    Vector3 omega = states.segment<3>(4);       //3-axis angular velocity
+    Vector4 omega_w = states.segment<4>(7);     //speeds of 4 reaction wheels
 
     // Outer Loop (Model -> Reference)
-    StateVector x_model = update_reference_model(NDI_reference, dt);
-    Quat q_m = x_model.segment<4>(0);
-    Vector3 omega_m = x_model.segment<3>(4);
+    StateVector x_model = update_reference_model(NDI_reference, dt); //stores updated modeled state
+    Quat q_m = x_model.segment<4>(0);                               //extracts models quaternion
+    Vector3 omega_m = x_model.segment<3>(4);                        //extracts model's angular velocity
 
-    StateVector x_model_dot = reference_model_dif_eq(x_model, NDI_reference);
-    Vector3 omega_m_dot = x_model_dot.segment<3>(4);
+    StateVector x_model_dot = reference_model_dif_eq(x_model, NDI_reference);  //outputs state derivitave 
+    Vector3 omega_m_dot = x_model_dot.segment<3>(4);                           // modeled angular acceleration
     Param::Vector10 RegInput; 
     RegInput.setSegment(0, q_m);
     RegInput.setSegment(4, omega_m);
-    RegInput.setSegment(7, omega_m_dot);
+    RegInput.setSegment(7, omega_m_dot);                //pack model state into reference format 
 
     // Regularize Reference 
     RegOutput reg_out = regularize_reference(q, RegInput);
-    q_m = reg_out.q_ref_eff;
-    omega_m = reg_out.omega_ref_eff;
-    omega_m_dot = reg_out.alpha_ref_eff;
-    StateVector toolIn;
-    StateVector toolIn2; 
+    q_m = reg_out.q_ref_eff;                            //effective attitude reference
+    omega_m = reg_out.omega_ref_eff;                    //effective angular velocity
+    omega_m_dot = reg_out.alpha_ref_eff;                //effective angular acceleration
+    
+    //prepare inputs for control
+    StateVector toolIn;         //actual state
+    StateVector toolIn2;        //modeled reference
     toolIn.setSegment(0, q);
     toolIn.setSegment(4, omega);
     toolIn2.setSegment(0, q_m);
     toolIn2.setSegment(4, omega_m);
 
+    //MATH STARTS HERE: WORTH DOCUMENTING SEPARATELY!!
     // Inner Loop (Plant -> Model)
     ToolBoxOutput toolbox = compute_BP_Toolbox(toolIn, toolIn2, false);
-    Param::Matrix43 E = toolbox.E_m;
-    Param::Matrix3 C_BB = toolbox.C_BB;
-    Scalar a = toolbox.a;
+    Param::Matrix43 E = toolbox.E_m;                //E_m is quaternion-kinematics matrix
+    Param::Matrix3 C_BB = toolbox.C_BB;             //C_BB is a transformation matrix for reference angular velocity
+    Scalar a = toolbox.a;                           //a gain for attittude error dynamics
 
     // Compute Errors 
     Vector3 e_q = 2*E.transpose() * q_m;
-    Vector3 e_omega = omega - C_BB * omega_m;
-    Vector3 e_omega_dot = a*e_q - a1_plant*e_omega;
-    Vector3 crossComp = C_BB*omega_m;
-    Vector3 omega_dot = C_BB*omega_m_dot + crossComp.cross(omega) + e_omega_dot;
+    Vector3 e_omega = omega - C_BB * omega_m;        //transforms modeled angular V into frame expected by error equation and calculates the difference
+    Vector3 e_omega_dot = a*e_q - a1_plant*e_omega;  //first term drives att toward ref.
+                                //rate error damping, wokrs to reduce angular rate error
+    //build desired angular acceleration
+    Vector3 crossComp = C_BB*omega_m;  //transformed reference angular velocity
+    Vector3 omega_dot = C_BB*omega_m_dot + crossComp.cross(omega) + e_omega_dot;  //angular acc requested ny NDI controller
 
     // Compute torque from Euler equations: τ = I*omega_dot + omega × (I*omega)
-    Vector3 tau_NDI = I*omega_dot + omega.cross(I*omega);
+    Vector3 tau_NDI = I*omega_dot + omega.cross(I*omega);  //requested body torque before actuator alloc and compensation
 
     // Gravity feedforward Compensation
     Vector3 accel_meas = measurements.segment<3>(0);
@@ -137,7 +149,7 @@ ControllerNDI::NDIOutput ControllerNDI::update(const Param::Vector11& states,
     Scalar body_rate_norm = omega.norm();
     Scalar wheel_momentum_norm = h_w.norm();
 
-    Scalar max_wheel_speed = static_cast<Scalar>(0.0);
+    Scalar max_wheel_speed = static_cast<Scalar>(0.0);          //finding largest absolute wheel speed
     for (int i = 0; i < 4; ++i) {
         Scalar abs_speed = std::abs(omega_w(i));
         if (abs_speed > max_wheel_speed) {
@@ -145,19 +157,26 @@ ControllerNDI::NDIOutput ControllerNDI::update(const Param::Vector11& states,
         }
     }
 
+
+    //the following chunk decides when to enter/exit desaturation 
+    //entry condition is true when the body rate of the craft is low and at least one wheel sat indicator is high
     bool rate_ready = body_rate_norm <= Param::Controller::Desat::entry_rate_norm;
     bool enter_by_speed = max_wheel_speed >= (Param::Controller::Desat::enter_wheel_speed_ratio * omega_w_max);
     bool enter_by_momentum = wheel_momentum_norm >= Param::Controller::Desat::enter_momentum_norm;
     bool desat_enter_condition = rate_ready && (enter_by_speed || enter_by_momentum);
 
+
+    //exit conditon here .
     bool exit_by_speed = max_wheel_speed <= (Param::Controller::Desat::exit_wheel_speed_ratio * omega_w_max);
     bool exit_by_momentum = wheel_momentum_norm <= Param::Controller::Desat::exit_momentum_norm;
     bool desat_exit_condition = exit_by_speed && exit_by_momentum;
 
+    //use of timers to prevent rapid switching from entry to exit
+    //wjen desat is active,
     if (desat_active) {
         if (desat_exit_condition) {
-            desat_exit_timer += dt;
-            if (desat_exit_timer >= Param::Controller::Desat::exit_hold_time) {
+            desat_exit_timer += dt;  //if exit condish is true, increment timer
+            if (desat_exit_timer >= Param::Controller::Desat::exit_hold_time) {     //deactivate when reaching configured hold time
                 desat_active = false;
                 desat_entry_timer = static_cast<Param::Real>(0.0);
                 desat_exit_timer = static_cast<Param::Real>(0.0);
@@ -180,6 +199,8 @@ ControllerNDI::NDIOutput ControllerNDI::update(const Param::Vector11& states,
         }
     }
 
+
+    //select control behavior for current mode
     Scalar mtq_comp_scale = static_cast<Scalar>(1.0);
     Scalar attitude_scale = static_cast<Scalar>(1.0);
     Scalar null_scale = static_cast<Scalar>(1.0);

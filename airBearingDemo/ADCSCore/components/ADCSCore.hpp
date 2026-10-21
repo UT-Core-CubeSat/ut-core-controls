@@ -5,15 +5,38 @@
 #include <core_ControllerManager.hpp>
 #include <core_MTQAllocator.hpp>
 
+
+//This file has been recommented by Averie on 10/9/2026
+
+//high level data flow
+//   Ground/CDH commands ──┐
+//                         ├──> Core::update()
+//   Sensor measurements ──┘         |
+//                                   v
+//                              State Observer
+//                                   |
+//                                   v
+//                                Controller
+//                                   |
+//                     ┌─────────────┴─────────────┐
+//                     v                           v
+//               Wheel torques               MTQ allocator
+//                                                 |
+//                                                 v
+//                                        Magnetorquer outputs
 namespace ADCS {
 
 // COMMAND INTERFACE (What CDH/Ground sends to ADCS)
 enum class MissionMode {
-    OFF,      // No control
-    DETUMBLE, // B-Dot via magnetorquers only
+    OFF,      // No active control
+    DETUMBLE, // B-Dot via magnetorquers only 
     MOTOR,    // NDI attitude hold via reaction wheels only (no MTQ)
     BOTH      // NDI via wheels + magnetorquer wheel-momentum desaturation
 };
+
+
+//packs the recieved operating mode into a command, 
+//defailts to both is there is no explicit command
 
 struct Command {
     MissionMode mode;
